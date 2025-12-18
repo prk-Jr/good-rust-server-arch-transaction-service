@@ -1,0 +1,159 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: Check & Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Check (all targets)
+        run: cargo check --all-targets
+
+      - name: Clippy (all features)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        feature: [postgres, sqlite]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Run tests (${{ matrix.feature }})
+        run: cargo test --workspace --no-default-features --features ${{ matrix.feature }}
+
+  integration-sqlite:
+    name: Integration (SQLite)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build (SQLite)
+        run: cargo build -p payments-app --no-default-features --features sqlite
+
+      - name: CLI Tests
+        run: ./scripts/sqlite/test_cli.sh
+
+      - name: E2E Tests
+        run: ./scripts/sqlite/test_e2e.sh
+
+      - name: Chaos Tests
+        run: CHAOS_ITERATIONS=10 ./scripts/sqlite/chaos_test.sh
+
+  integration-postgres:
+    name: Integration (Postgres)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build CLI
+        run: cargo build -p payments-cli
+
+      - name: CLI Tests
+        run: ./scripts/postgres/test_cli.sh
+
+      - name: E2E Tests
+        run: ./scripts/postgres/test_e2e.sh
+
+      - name: Chaos Tests
+        run: CHAOS_ITERATIONS=10 ./scripts/postgres/chaos_test.sh
+
+  # build:
+  #   name: Release Build
+  #   runs-on: ubuntu-latest
+  #   strategy:
+  #     matrix:
+  #       feature: [postgres, sqlite]
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+
+  #     - name: Set up Rust
+  #       uses: dtolnay/rust-toolchain@stable
+
+  #     - name: Cache cargo
+  #       uses: actions/cache@v4
+  #       with:
+  #         path: |
+  #           ~/.cargo/registry
+  #           ~/.cargo/git
+  #           target
+  #         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+  #         restore-keys: |
+  #           ${{ runner.os }}-cargo-
+
+  #     - name: Build release (${{ matrix.feature }})
+  #       run: cargo build --release --no-default-features --features ${{ matrix.feature }}

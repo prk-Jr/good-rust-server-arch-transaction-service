@@ -1,0 +1,39 @@
+# Docker Compose for PostgreSQL Integration Testing
+# Usage: docker compose -f docker-compose.test.yml up -d --build
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: payments-test-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass
+      POSTGRES_DB: payments_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testuser -d payments_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: payments-test-api
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://testuser:testpass@db:5432/payments_test
+      PORT: 3000
+      RUST_LOG: info
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s

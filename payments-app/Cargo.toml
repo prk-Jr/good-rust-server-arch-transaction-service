@@ -1,0 +1,40 @@
+[package]
+name = "payments-app"
+version.workspace = true
+edition.workspace = true
+description = "Binary application wiring for the payments service"
+
+[[bin]]
+name = "payments-server"
+path = "src/main.rs"
+
+[[example]]
+name = "client_example"
+required-features = ["sqlite"]
+
+[features]
+default = ["postgres"]
+postgres = ["payments-repo/postgres", "sqlx/postgres"]
+sqlite = ["payments-repo/sqlite", "sqlx/sqlite"]
+
+[dependencies]
+payments-types = { path = "../payments-types" }
+payments-hex = { path = "../payments-hex" }
+payments-repo = { path = "../payments-repo" }
+
+# Async
+tokio = { workspace = true }
+
+# Database
+sqlx = { workspace = true, optional = true }
+
+# Config
+dotenvy = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+payments-client = { path = "../payments-client" }
+tempfile = "3"
+axum = { workspace = true }

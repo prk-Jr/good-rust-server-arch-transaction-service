@@ -1,0 +1,18 @@
+[package]
+name = "payments-cli"
+version.workspace = true
+edition.workspace = true
+description = "Command-line interface for the payments API"
+
+[[bin]]
+name = "payments"
+path = "src/main.rs"
+
+[dependencies]
+payments-client = { path = "../payments-client" }
+payments-types = { path = "../payments-types" }
+clap = { version = "4", features = ["derive", "env"] }
+tokio = { workspace = true }
+serde_json = { workspace = true }
+dotenvy = { workspace = true }
+anyhow = { workspace = true }
