@@ -2,18 +2,13 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum WebhookStatus {
+    #[default]
     Pending,
     Processing,
     Completed,
     Failed,
-}
-
-impl Default for WebhookStatus {
-    fn default() -> Self {
-        Self::Pending
-    }
 }
 
 impl AsRef<str> for WebhookStatus {
