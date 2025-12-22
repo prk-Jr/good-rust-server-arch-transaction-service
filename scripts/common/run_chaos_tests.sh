@@ -24,12 +24,27 @@ echo "Iterations: $ITERATIONS"
 echo "Base URL: $BASE_URL"
 echo
 
+# ─────────────────────────────────────────────────────────────────────────────
+# BOOTSTRAP - Get API Key
+# ─────────────────────────────────────────────────────────────────────────────
+print_step "Bootstrapping API Key..."
+BOOTSTRAP_RESP=$(curl -s -X POST "$BASE_URL/api/bootstrap" -H "Content-Type: application/json" -d '{"name":"chaos-test-key"}')
+API_KEY=$(echo "$BOOTSTRAP_RESP" | grep -o '"api_key":"[^"]*"' | cut -d'"' -f4)
+if [[ -n "$API_KEY" ]]; then
+    print_success "API Key obtained: ${API_KEY:0:10}..."
+else
+    print_error "Failed to get API key: $BOOTSTRAP_RESP"
+    exit 1
+fi
+
+AUTH_HEADER="Authorization: Bearer $API_KEY"
+
 http_post() {
-    curl -s -X POST "$BASE_URL$1" -H "Content-Type: application/json" -d "$2"
+    curl -s -X POST "$BASE_URL$1" -H "Content-Type: application/json" -H "$AUTH_HEADER" -d "$2"
 }
 
 http_get() {
-    curl -s "$BASE_URL$1"
+    curl -s -H "$AUTH_HEADER" "$BASE_URL$1"
 }
 
 create_account() {

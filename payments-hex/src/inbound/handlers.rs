@@ -131,3 +131,112 @@ pub async fn list_transactions<R: TransactionRepository>(
     let transactions = state.service.list_transactions(account_id).await?;
     Ok(Json(transactions))
 }
+
+/// Bootstrap endpoint - creates the first API key.
+///
+/// This endpoint only works when there are NO existing API keys in the system.
+/// It returns the raw API key (only shown once) that should be saved securely.
+#[derive(serde::Deserialize)]
+pub struct BootstrapRequest {
+    pub name: String,
+}
+
+#[derive(serde::Serialize)]
+pub struct BootstrapResponse {
+    pub api_key: String,
+    pub message: String,
+}
+
+pub async fn bootstrap<R: TransactionRepository>(
+    State(state): State<Arc<AppState<R>>>,
+    Json(req): Json<BootstrapRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    // Check if there are any existing API keys
+    let key_count = state
+        .service
+        .repo()
+        .count_api_keys()
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    if key_count > 0 {
+        return Err(AppError::BadRequest(
+            "Bootstrap not allowed: API keys already exist. Use an existing key to create new ones.".into()
+        ).into());
+    }
+
+    // Create the first API key
+    let (_api_key, raw_key) = state
+        .service
+        .repo()
+        .create_api_key(&req.name)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(BootstrapResponse {
+            api_key: raw_key,
+            message: "First API key created. Save this key securely - it won't be shown again!"
+                .into(),
+        }),
+    ))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Webhooks
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Register a new webhook endpoint.
+pub async fn register_webhook<R: TransactionRepository>(
+    State(state): State<Arc<AppState<R>>>,
+    Json(req): Json<payments_types::RegisterWebhookRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    // Validate URL
+    if req.url.is_empty() {
+        return Err(AppError::BadRequest("Webhook URL cannot be empty".into()).into());
+    }
+
+    let endpoint = state
+        .service
+        .repo()
+        .register_webhook_endpoint(&req.url, req.events)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(payments_types::WebhookResponse {
+            id: payments_types::WebhookEndpointId::from_uuid(endpoint.id),
+            url: endpoint.url,
+            secret: endpoint.secret,
+            events: endpoint.events,
+            is_active: endpoint.is_active,
+        }),
+    ))
+}
+
+/// List all active webhook endpoints.
+pub async fn list_webhooks<R: TransactionRepository>(
+    State(state): State<Arc<AppState<R>>>,
+) -> Result<impl IntoResponse, ApiError> {
+    let endpoints = state
+        .service
+        .repo()
+        .list_webhook_endpoints()
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    let response: Vec<_> = endpoints
+        .into_iter()
+        .map(|ep| payments_types::WebhookResponse {
+            id: payments_types::WebhookEndpointId::from_uuid(ep.id),
+            url: ep.url,
+            secret: ep.secret,
+            events: ep.events,
+            is_active: ep.is_active,
+        })
+        .collect();
+
+    Ok(Json(response))
+}

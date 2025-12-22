@@ -143,6 +143,55 @@ pub(crate) mod tests {
                 .cloned()
                 .collect())
         }
+
+        async fn verify_api_key_hash(
+            &self,
+            _key_hash: &str,
+        ) -> Result<Option<payments_types::ApiKey>, RepoError> {
+            // Mock always returns None - no API key validation in unit tests
+            Ok(None)
+        }
+
+        async fn create_api_key(
+            &self,
+            _name: &str,
+        ) -> Result<(payments_types::ApiKey, String), RepoError> {
+            // Mock - not implemented for unit tests
+            unimplemented!("create_api_key not implemented in MockRepo")
+        }
+
+        async fn count_api_keys(&self) -> Result<i64, RepoError> {
+            // Mock always returns 0 - no API keys in unit tests
+            Ok(0)
+        }
+
+        async fn register_webhook_endpoint(
+            &self,
+            _url: &str,
+            _events: Vec<String>,
+        ) -> Result<payments_types::WebhookEndpoint, RepoError> {
+            unimplemented!("register_webhook_endpoint not implemented in MockRepo")
+        }
+
+        async fn list_webhook_endpoints(
+            &self,
+        ) -> Result<Vec<payments_types::WebhookEndpoint>, RepoError> {
+            Ok(vec![])
+        }
+
+        async fn create_webhook_event(
+            &self,
+            _endpoint_id: payments_types::WebhookEndpointId,
+            _event_type: &str,
+            _payload: serde_json::Value,
+        ) -> Result<payments_types::WebhookEvent, RepoError> {
+            // Return a dummy event
+            Ok(payments_types::WebhookEvent::new(
+                uuid::Uuid::new_v4(),
+                _event_type,
+                _payload,
+            ))
+        }
     }
 
     #[tokio::test]

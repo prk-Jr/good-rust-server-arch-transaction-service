@@ -69,7 +69,19 @@ impl<R: TransactionRepository> PaymentService<R> {
             return Err(AppError::BadRequest("Amount must be positive".into()));
         }
 
-        self.repo.deposit(req).await.map_err(Into::into)
+        let transaction = self.repo.deposit(req).await.map_err(AppError::from)?;
+
+        // Trigger webhook
+        let payload = serde_json::json!({
+            "transaction_id": transaction.id,
+            "account_id": transaction.destination_account_id,
+            "amount": transaction.amount.amount(),
+            "currency": transaction.amount.currency(),
+            "reference": transaction.reference,
+        });
+        self.trigger_webhook("deposit.success", payload).await;
+
+        Ok(transaction)
     }
 
     /// Withdraws money from an account.
@@ -78,7 +90,19 @@ impl<R: TransactionRepository> PaymentService<R> {
             return Err(AppError::BadRequest("Amount must be positive".into()));
         }
 
-        self.repo.withdraw(req).await.map_err(Into::into)
+        let transaction = self.repo.withdraw(req).await.map_err(AppError::from)?;
+
+        // Trigger webhook
+        let payload = serde_json::json!({
+            "transaction_id": transaction.id,
+            "account_id": transaction.source_account_id,
+            "amount": transaction.amount.amount(),
+            "currency": transaction.amount.currency(),
+            "reference": transaction.reference,
+        });
+        self.trigger_webhook("withdraw.success", payload).await;
+
+        Ok(transaction)
     }
 
     /// Transfers money between accounts.
@@ -93,7 +117,20 @@ impl<R: TransactionRepository> PaymentService<R> {
             ));
         }
 
-        self.repo.transfer(req).await.map_err(Into::into)
+        let transaction = self.repo.transfer(req).await.map_err(AppError::from)?;
+
+        // Trigger webhook
+        let payload = serde_json::json!({
+            "transaction_id": transaction.id,
+            "from_account_id": transaction.source_account_id,
+            "to_account_id": transaction.destination_account_id,
+            "amount": transaction.amount.amount(),
+            "currency": transaction.amount.currency(),
+            "reference": transaction.reference,
+        });
+        self.trigger_webhook("transfer.success", payload).await;
+
+        Ok(transaction)
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -121,5 +158,76 @@ impl<R: TransactionRepository> PaymentService<R> {
             .list_transactions_for_account(account_id)
             .await
             .map_err(Into::into)
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Webhook Logic
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    async fn trigger_webhook(&self, event_type: &str, payload: serde_json::Value) {
+        use payments_types::WebhookEndpointId;
+
+        // 1. List all endpoints (naive approach, better would be to filter in DB)
+        let endpoints = match self.repo.list_webhook_endpoints().await {
+            Ok(eps) => eps,
+            Err(e) => {
+                tracing::error!("Failed to list webhooks for trigger: {}", e);
+                return;
+            }
+        };
+
+        // 2. Filter interesting endpoints
+        // Note: For demo simplicity, we match exact string. A regex or wildcard system is better.
+        let targets: Vec<_> = endpoints
+            .into_iter()
+            .filter(|ep| ep.is_active && ep.events.contains(&event_type.to_string()))
+            .collect();
+
+        for endpoint in targets {
+            let endpoint_id = WebhookEndpointId::from_uuid(endpoint.id);
+            // 3. Create event in DB
+            if let Err(e) = self
+                .repo
+                .create_webhook_event(endpoint_id, event_type, payload.clone())
+                .await
+            {
+                tracing::error!("Failed to persist webhook event: {}", e);
+                continue;
+            }
+
+            // 4. Send event (Fire and forget via tokio spawn)
+            let url = endpoint.url.clone();
+            let payload = payload.clone();
+            let event_type = event_type.to_string();
+
+            tokio::spawn(async move {
+                let client = reqwest::Client::new();
+                // Construct standard wrapper if needed, or just send payload
+                // Usually webhooks wrap: { "event": "type", "data": payload }
+                let body = serde_json::json!({
+                    "event": event_type,
+                    "data": payload
+                });
+
+                tracing::info!("Sending webhook {} to {}", event_type, url);
+
+                match client.post(&url).json(&body).send().await {
+                    Ok(resp) => {
+                        if !resp.status().is_success() {
+                            tracing::warn!(
+                                "Webhook to {} failed with status {}",
+                                url,
+                                resp.status()
+                            );
+                        } else {
+                            tracing::info!("Webhook sent to {}", url);
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to send webhook request to {}: {}", url, e);
+                    }
+                }
+            });
+        }
     }
 }

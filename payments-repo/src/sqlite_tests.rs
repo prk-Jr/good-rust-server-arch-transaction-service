@@ -4,8 +4,9 @@
 mod tests {
     use payments_types::{
         AccountId, CreateAccountRequest, Currency, DepositRequest, DomainError, RepoError,
-        TransactionRepository, TransferRequest, WithdrawRequest,
+        TransactionRepository, TransferRequest, WebhookEndpointId, WithdrawRequest,
     };
+    use uuid::Uuid;
 
     use crate::SqliteRepo;
 
@@ -398,16 +399,18 @@ mod tests {
             .await
             .unwrap();
 
-        // 1. Trigger deposit -> should create webhook
-        repo.deposit(DepositRequest {
-            account_id: account.id,
-            amount: 500,
-            currency: Currency::USD,
-            idempotency_key: None,
-            reference: None,
-        })
-        .await
-        .unwrap();
+        // Manually create a webhook event (simulating PaymentService behavior)
+        let endpoint_id = WebhookEndpointId(Uuid::new_v4());
+        let payload = serde_json::json!({
+            "type": "DEPOSIT",
+            "amount": 500,
+            "currency": "USD",
+            "account_id": account.id,
+        });
+
+        repo.create_webhook_event(endpoint_id, "DEPOSIT_COMPLETED", payload)
+            .await
+            .unwrap();
 
         // 2. Fetch pending webhooks
         let events = repo.get_pending_webhooks(10).await.unwrap();

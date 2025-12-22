@@ -4,8 +4,14 @@ version.workspace = true
 edition.workspace = true
 description = "Application service and HTTP adapter for the payments service"
 
+[features]
+default = []
+sqlite = ["payments-repo/sqlite"]
+postgres = ["payments-repo/postgres"]
+
 [dependencies]
 payments-types = { path = "../payments-types" }
+payments-repo = { path = "../payments-repo" }
 
 # Async
 tokio = { workspace = true }
@@ -24,3 +30,11 @@ serde_json = { workspace = true }
 uuid = { workspace = true }
 tracing = { workspace = true }
 anyhow = { workspace = true }
+
+# Rate limiting
+governor = { workspace = true }
+dashmap = { workspace = true }
+
+# HTTP Client for Webhooks
+reqwest = { workspace = true, features = ["json"] }
+

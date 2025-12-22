@@ -54,4 +54,41 @@ pub trait TransactionRepository: Send + Sync + 'static {
         &self,
         account_id: AccountId,
     ) -> Result<Vec<Transaction>, RepoError>;
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // API Key Verification
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    /// Verifies an API key hash and returns the associated ApiKey if valid and active.
+    async fn verify_api_key_hash(&self, key_hash: &str)
+    -> Result<Option<crate::ApiKey>, RepoError>;
+
+    /// Creates a new API key with the given name and returns the raw key (only shown once).
+    /// The key is stored as a hash in the database.
+    async fn create_api_key(&self, name: &str) -> Result<(crate::ApiKey, String), RepoError>;
+
+    /// Counts the number of active API keys in the system.
+    async fn count_api_keys(&self) -> Result<i64, RepoError>;
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Webhook Endpoint Management
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    /// Registers a new webhook endpoint.
+    async fn register_webhook_endpoint(
+        &self,
+        url: &str,
+        events: Vec<String>,
+    ) -> Result<crate::WebhookEndpoint, RepoError>;
+
+    /// Lists all active webhook endpoints.
+    async fn list_webhook_endpoints(&self) -> Result<Vec<crate::WebhookEndpoint>, RepoError>;
+
+    /// Creates a new webhook event to be sent to a specific endpoint.
+    async fn create_webhook_event(
+        &self,
+        endpoint_id: crate::WebhookEndpointId,
+        event_type: &str,
+        payload: serde_json::Value,
+    ) -> Result<crate::WebhookEvent, RepoError>;
 }

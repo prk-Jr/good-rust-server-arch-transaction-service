@@ -19,8 +19,8 @@ pub mod ports;
 
 // Re-export commonly used types
 pub use domain::{
-    Account, AccountId, Currency, Money, Transaction, TransactionId, TransactionType, WebhookEvent,
-    WebhookStatus,
+    Account, AccountId, ApiKey, ApiKeyId, Currency, Money, Transaction, TransactionId,
+    TransactionType, WebhookEndpoint, WebhookEndpointId, WebhookEvent, WebhookStatus,
 };
 pub use dto::*;
 pub use error::{AppError, DomainError, RepoError};

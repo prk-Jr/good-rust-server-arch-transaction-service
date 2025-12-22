@@ -35,3 +35,5 @@ sha2 = { workspace = true }
 hmac = { workspace = true }
 hex = { workspace = true }
 subtle = { workspace = true }
+rand = { workspace = true }
+

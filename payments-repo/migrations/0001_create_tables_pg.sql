@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS accounts (
     currency TEXT NOT NULL DEFAULT 'USD',
     created_at TIMESTAMPTZ NOT NULL
 );
---SPLIT--
+
 CREATE TABLE IF NOT EXISTS transactions (
     id UUID PRIMARY KEY,
     direction TEXT NOT NULL,
@@ -17,9 +17,8 @@ CREATE TABLE IF NOT EXISTS transactions (
     reference TEXT,
     created_at TIMESTAMPTZ NOT NULL
 );
---SPLIT--
+
 CREATE INDEX IF NOT EXISTS idx_transactions_source ON transactions(source_account_id);
---SPLIT--
 CREATE INDEX IF NOT EXISTS idx_transactions_dest ON transactions(destination_account_id);
---SPLIT--
 CREATE INDEX IF NOT EXISTS idx_transactions_idempotency ON transactions(idempotency_key);
+

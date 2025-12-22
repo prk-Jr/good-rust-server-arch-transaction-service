@@ -51,6 +51,13 @@ impl SqliteRepo {
         let ddl_webhooks = include_str!("../migrations/0002_create_webhook_events.sql");
         sqlx::query(ddl_webhooks).execute(&pool).await?;
 
+        let ddl_api_keys = include_str!("../migrations/0003_create_api_keys.sql");
+        sqlx::query(ddl_api_keys).execute(&pool).await?;
+
+        let ddl_webhook_endpoints =
+            include_str!("../migrations/0004_create_webhook_endpoints_sqlite.sql");
+        sqlx::query(ddl_webhook_endpoints).execute(&pool).await?;
+
         Ok(Self { pool })
     }
 
@@ -69,6 +76,12 @@ impl SqliteRepo {
 
         let ddl_webhooks = include_str!("../migrations/0002_create_webhook_events.sql");
         sqlx::query(ddl_webhooks)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        let ddl_api_keys = include_str!("../migrations/0003_create_api_keys.sql");
+        sqlx::query(ddl_api_keys)
             .execute(&self.pool)
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
@@ -183,27 +196,6 @@ impl TransactionRepository for SqliteRepo {
         .await
         .map_err(|e| RepoError::Database(e.to_string()))?;
 
-        // Webhook
-        let webhook_id = Uuid::new_v4();
-        let payload = serde_json::json!({
-            "transaction_id": tx_id,
-            "type": "DEPOSIT",
-            "amount": money.amount(),
-            "currency": money.currency(),
-            "account_id": req.account_id,
-        });
-
-        sqlx::query(
-            r#"INSERT INTO webhook_events (id, event_type, payload, status, created_at) VALUES (?, ?, ?, 'PENDING', ?)"#,
-        )
-        .bind(webhook_id.to_string())
-        .bind("DEPOSIT_COMPLETED")
-        .bind(payload.to_string())
-        .bind(now.clone())
-        .execute(&mut *db_tx)
-        .await
-        .map_err(|e| RepoError::Database(e.to_string()))?;
-
         db_tx
             .commit()
             .await
@@ -269,27 +261,6 @@ impl TransactionRepository for SqliteRepo {
         .bind(&req.idempotency_key)
         .bind(&req.reference)
         .bind(&now)
-        .execute(&mut *db_tx)
-        .await
-        .map_err(|e| RepoError::Database(e.to_string()))?;
-
-        // Webhook
-        let webhook_id = Uuid::new_v4();
-        let payload = serde_json::json!({
-            "transaction_id": tx_id,
-            "type": "WITHDRAWAL",
-            "amount": money.amount(),
-            "currency": money.currency(),
-            "account_id": req.account_id,
-        });
-
-        sqlx::query(
-            r#"INSERT INTO webhook_events (id, event_type, payload, status, created_at) VALUES (?, ?, ?, 'PENDING', ?)"#,
-        )
-        .bind(webhook_id.to_string())
-        .bind("WITHDRAWAL_COMPLETED")
-        .bind(payload.to_string())
-        .bind(now.clone())
         .execute(&mut *db_tx)
         .await
         .map_err(|e| RepoError::Database(e.to_string()))?;
@@ -390,28 +361,6 @@ impl TransactionRepository for SqliteRepo {
         .await
         .map_err(|e| RepoError::Database(e.to_string()))?;
 
-        // Webhook
-        let webhook_id = Uuid::new_v4();
-        let payload = serde_json::json!({
-            "transaction_id": tx_id,
-            "type": "TRANSFER",
-            "amount": money.amount(),
-            "currency": money.currency(),
-            "from_account_id": req.from_account_id,
-            "to_account_id": req.to_account_id
-        });
-
-        sqlx::query(
-            r#"INSERT INTO webhook_events (id, event_type, payload, status, created_at) VALUES (?, ?, ?, 'PENDING', ?)"#,
-        )
-        .bind(webhook_id.to_string())
-        .bind("TRANSFER_COMPLETED")
-        .bind(payload.to_string())
-        .bind(now.clone())
-        .execute(&mut *db_tx)
-        .await
-        .map_err(|e| RepoError::Database(e.to_string()))?;
-
         db_tx
             .commit()
             .await
@@ -476,6 +425,207 @@ impl TransactionRepository for SqliteRepo {
 
         rows.into_iter().map(DbTransaction::into_domain).collect()
     }
+
+    async fn verify_api_key_hash(
+        &self,
+        key_hash: &str,
+    ) -> Result<Option<payments_types::ApiKey>, RepoError> {
+        let row: Option<crate::types::DbApiKey> = sqlx::query_as(
+            r#"
+            SELECT id, name, key_hash, account_id, is_active, created_at, last_used_at
+            FROM api_keys
+            WHERE key_hash = ? AND is_active = 1
+            "#,
+        )
+        .bind(key_hash)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        row.map(|r| r.into_domain()).transpose()
+    }
+
+    async fn create_api_key(
+        &self,
+        name: &str,
+    ) -> Result<(payments_types::ApiKey, String), RepoError> {
+        use rand::Rng;
+        use rand::distr::Alphanumeric;
+
+        // Generate a secure random API key
+        let raw_key: String = rand::rng()
+            .sample_iter(&Alphanumeric)
+            .take(32)
+            .map(char::from)
+            .collect();
+        let prefixed_key = format!("sk_{}", raw_key);
+
+        let key_hash = crate::security::hash_api_key(&prefixed_key);
+        let id = uuid::Uuid::new_v4();
+        let now = chrono::Utc::now().to_rfc3339();
+
+        sqlx::query(
+            r#"
+            INSERT INTO api_keys (id, name, key_hash, is_active, created_at)
+            VALUES (?, ?, ?, 1, ?)
+            "#,
+        )
+        .bind(id.to_string())
+        .bind(name)
+        .bind(&key_hash)
+        .bind(&now)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        let created_at = chrono::DateTime::parse_from_rfc3339(&now)
+            .map_err(|e| RepoError::Database(e.to_string()))?
+            .with_timezone(&chrono::Utc);
+
+        let api_key = payments_types::ApiKey {
+            id: payments_types::ApiKeyId::from_uuid(id),
+            name: name.to_string(),
+            key_hash,
+            account_id: None,
+            is_active: true,
+            created_at,
+            last_used_at: None,
+        };
+
+        Ok((api_key, prefixed_key))
+    }
+
+    async fn count_api_keys(&self) -> Result<i64, RepoError> {
+        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM api_keys WHERE is_active = 1")
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        Ok(row.0)
+    }
+
+    async fn register_webhook_endpoint(
+        &self,
+        url: &str,
+        events: Vec<String>,
+    ) -> Result<payments_types::WebhookEndpoint, RepoError> {
+        use rand::Rng;
+        use rand::distr::Alphanumeric;
+
+        let id = uuid::Uuid::new_v4();
+        let now = chrono::Utc::now();
+
+        // Generate a random secret for HMAC signing
+        let secret: String = rand::rng()
+            .sample_iter(&Alphanumeric)
+            .take(32)
+            .map(char::from)
+            .collect();
+        let secret = format!("whsec_{}", secret);
+
+        let events_json =
+            serde_json::to_string(&events).map_err(|e| RepoError::Database(e.to_string()))?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO webhook_endpoints (id, url, secret, events, is_active, created_at)
+            VALUES (?, ?, ?, ?, 1, ?)
+            "#,
+        )
+        .bind(id.to_string())
+        .bind(url)
+        .bind(&secret)
+        .bind(&events_json)
+        .bind(now.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        Ok(payments_types::WebhookEndpoint {
+            id,
+            url: url.to_string(),
+            secret,
+            events,
+            is_active: true,
+            created_at: now,
+        })
+    }
+
+    async fn list_webhook_endpoints(
+        &self,
+    ) -> Result<Vec<payments_types::WebhookEndpoint>, RepoError> {
+        let rows: Vec<(String, String, String, String, i32, String)> = sqlx::query_as(
+            r#"
+            SELECT id, url, secret, events, is_active, created_at
+            FROM webhook_endpoints
+            WHERE is_active = 1
+            ORDER BY created_at DESC
+            "#,
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        rows.into_iter()
+            .map(|(id, url, secret, events, is_active, created_at)| {
+                let id =
+                    uuid::Uuid::parse_str(&id).map_err(|e| RepoError::Database(e.to_string()))?;
+                let events: Vec<String> = serde_json::from_str(&events).unwrap_or_default();
+                let created_at = chrono::DateTime::parse_from_rfc3339(&created_at)
+                    .map_err(|e| RepoError::Database(e.to_string()))?
+                    .with_timezone(&chrono::Utc);
+                Ok(payments_types::WebhookEndpoint {
+                    id,
+                    url,
+                    secret,
+                    events,
+                    is_active: is_active == 1,
+                    created_at,
+                })
+            })
+            .collect()
+    }
+
+    async fn create_webhook_event(
+        &self,
+        endpoint_id: payments_types::WebhookEndpointId,
+        event_type: &str,
+        payload: serde_json::Value,
+    ) -> Result<payments_types::WebhookEvent, RepoError> {
+        let event_id = uuid::Uuid::new_v4();
+        let now_dt = chrono::Utc::now();
+        let now = now_dt.to_rfc3339();
+        let payload_json =
+            serde_json::to_string(&payload).map_err(|e| RepoError::Database(e.to_string()))?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO webhook_events (id, endpoint_id, event_type, payload, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(event_id.to_string())
+        .bind(endpoint_id.0.to_string())
+        .bind(event_type)
+        .bind(payload_json)
+        .bind("PENDING")
+        .bind(&now)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        Ok(payments_types::WebhookEvent {
+            id: event_id,
+            endpoint_id: endpoint_id.0,
+            event_type: event_type.to_string(),
+            payload: serde_json::Value::Null,
+            status: payments_types::WebhookStatus::Pending,
+            created_at: now_dt,
+            processed_at: None,
+            attempts: 0,
+            last_error: None,
+        })
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -488,7 +638,7 @@ impl SqliteRepo {
     pub async fn get_pending_webhooks(&self, limit: i64) -> Result<Vec<WebhookEvent>, RepoError> {
         let rows = sqlx::query_as::<_, crate::types::DbWebhookEvent>(
             r#"
-            SELECT id, event_type, payload, status, created_at, processed_at, attempts, last_error
+            SELECT id, endpoint_id, event_type, payload, status, created_at, processed_at, attempts, last_error
             FROM webhook_events
             WHERE status = 'PENDING'
             ORDER BY created_at ASC

@@ -89,3 +89,27 @@ pub enum TransactionStatus {
     Pending,
     Failed,
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Webhook DTOs
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Request to register a webhook endpoint.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegisterWebhookRequest {
+    /// The URL to receive webhook notifications
+    pub url: String,
+    /// Event types to subscribe to. If empty, subscribes to all events.
+    #[serde(default)]
+    pub events: Vec<String>,
+}
+
+/// Response after registering a webhook.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebhookResponse {
+    pub id: crate::WebhookEndpointId,
+    pub url: String,
+    pub secret: String,
+    pub events: Vec<String>,
+    pub is_active: bool,
+}

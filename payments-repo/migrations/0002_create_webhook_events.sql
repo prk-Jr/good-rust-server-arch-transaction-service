@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS webhook_events (
     id TEXT PRIMARY KEY,
+    endpoint_id TEXT,
     event_type TEXT NOT NULL,
     payload TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'PENDING',

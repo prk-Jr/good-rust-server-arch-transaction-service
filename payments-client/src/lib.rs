@@ -8,6 +8,7 @@ use payments_types::{
 };
 use reqwest::Client;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 
 /// Error type for client operations.
 #[derive(Debug, thiserror::Error)]
@@ -20,6 +21,16 @@ pub enum ClientError {
 
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
+}
+
+/// Response from webhook registration or listing.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebhookResponse {
+    pub id: String,
+    pub url: String,
+    pub secret: String,
+    pub events: Vec<String>,
+    pub is_active: bool,
 }
 
 /// Payments API client.
@@ -53,6 +64,45 @@ impl PaymentsClient {
             .send()
             .await?;
         Ok(resp.status().is_success())
+    }
+
+    /// Bootstraps the first API key (only works when no keys exist).
+    /// Returns the raw API key that should be saved securely.
+    pub async fn bootstrap(&self, name: &str) -> Result<String, ClientError> {
+        #[derive(serde::Serialize)]
+        struct BootstrapRequest {
+            name: String,
+        }
+        #[derive(serde::Deserialize)]
+        struct BootstrapResponse {
+            api_key: String,
+        }
+
+        let req = BootstrapRequest {
+            name: name.to_string(),
+        };
+        let resp = self
+            .http
+            .post(format!("{}/api/bootstrap", self.base_url))
+            .json(&req)
+            .send()
+            .await?;
+
+        let status = resp.status();
+        if status.is_success() {
+            let body: BootstrapResponse = resp.json().await?;
+            Ok(body.api_key)
+        } else {
+            let body = resp.text().await.unwrap_or_default();
+            let message = serde_json::from_str::<serde_json::Value>(&body)
+                .ok()
+                .and_then(|v| v.get("error").and_then(|e| e.as_str()).map(String::from))
+                .unwrap_or(body);
+            Err(ClientError::Api {
+                status: status.as_u16(),
+                message,
+            })
+        }
     }
 
     /// Creates a new account.
@@ -137,10 +187,35 @@ impl PaymentsClient {
         self.post("/api/transactions/transfer", &req).await
     }
 
+    /// Registers a new webhook endpoint.
+    /// Returns the webhook with its secret for verifying signatures.
+    pub async fn register_webhook(
+        &self,
+        url: &str,
+        events: Vec<String>,
+    ) -> Result<WebhookResponse, ClientError> {
+        #[derive(serde::Serialize)]
+        struct RegisterWebhookRequest {
+            url: String,
+            events: Vec<String>,
+        }
+
+        let req = RegisterWebhookRequest {
+            url: url.to_string(),
+            events,
+        };
+        self.post("/api/webhooks", &req).await
+    }
+
+    /// Lists all registered webhook endpoints.
+    pub async fn list_webhooks(&self) -> Result<Vec<WebhookResponse>, ClientError> {
+        self.get("/api/webhooks").await
+    }
+
     async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, ClientError> {
         let mut req = self.http.get(format!("{}{}", self.base_url, path));
         if let Some(key) = &self.api_key {
-            req = req.header("X-API-Key", key);
+            req = req.header("Authorization", format!("Bearer {}", key));
         }
         let resp = req.send().await?;
         self.handle_response(resp).await
@@ -156,7 +231,7 @@ impl PaymentsClient {
             .post(format!("{}{}", self.base_url, path))
             .json(body);
         if let Some(key) = &self.api_key {
-            req = req.header("X-API-Key", key);
+            req = req.header("Authorization", format!("Bearer {}", key));
         }
         let resp = req.send().await?;
         self.handle_response(resp).await

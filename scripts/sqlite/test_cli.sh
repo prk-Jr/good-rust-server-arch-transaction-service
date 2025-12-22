@@ -9,6 +9,7 @@ DB_PATH="$TEMP_DIR/test.db"
 export DATABASE_URL="sqlite://${DB_PATH}?mode=rwc"
 export PORT=3033
 export PAYMENTS_API_URL="http://localhost:$PORT"
+export BASE_URL="http://localhost:$PORT"
 
 cleanup() {
     if [[ -n "${SERVER_PID:-}" ]]; then kill "$SERVER_PID" 2>/dev/null || true; fi

@@ -53,3 +53,11 @@ subtle = "2"
 
 # Concurrent collections
 dashmap = "6"
+
+# Random generation
+rand = "0.9"
+
+# Rate limiting
+governor = "0.10"
+
+

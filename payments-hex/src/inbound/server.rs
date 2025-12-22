@@ -3,19 +3,22 @@
 use std::sync::Arc;
 
 use axum::{
-    Router,
+    Router, middleware,
     routing::{get, post},
 };
 use tower_http::trace::TraceLayer;
 
 use payments_types::TransactionRepository;
 
+use super::auth::auth_middleware;
 use super::handlers::{self, AppState};
+use super::rate_limit::{RateLimiterState, rate_limit_middleware};
 use crate::PaymentService;
 
 /// HTTP Server for the Payments API.
 pub struct HttpServer<R: TransactionRepository> {
     state: Arc<AppState<R>>,
+    rate_limiter: Arc<RateLimiterState>,
 }
 
 impl<R: TransactionRepository> HttpServer<R> {
@@ -23,6 +26,19 @@ impl<R: TransactionRepository> HttpServer<R> {
     pub fn new(service: PaymentService<R>) -> Self {
         Self {
             state: Arc::new(AppState { service }),
+            rate_limiter: Arc::new(RateLimiterState::default()), // 100 req/min default
+        }
+    }
+
+    /// Creates a new HTTP server with custom rate limiting.
+    pub fn with_rate_limit(service: PaymentService<R>, requests_per_minute: u32) -> Self {
+        use std::time::Duration;
+        Self {
+            state: Arc::new(AppState { service }),
+            rate_limiter: Arc::new(RateLimiterState::new(
+                requests_per_minute,
+                Duration::from_secs(60),
+            )),
         }
     }
 
@@ -30,6 +46,7 @@ impl<R: TransactionRepository> HttpServer<R> {
     pub fn router(&self) -> Router {
         Router::new()
             .route("/health", get(handlers::health))
+            .route("/api/bootstrap", post(handlers::bootstrap::<R>))
             .route("/api/accounts", post(handlers::create_account::<R>))
             .route("/api/accounts", get(handlers::list_accounts::<R>))
             .route("/api/accounts/{id}", get(handlers::get_account::<R>))
@@ -40,6 +57,16 @@ impl<R: TransactionRepository> HttpServer<R> {
             .route("/api/transactions/deposit", post(handlers::deposit::<R>))
             .route("/api/transactions/withdraw", post(handlers::withdraw::<R>))
             .route("/api/transactions/transfer", post(handlers::transfer::<R>))
+            .route("/api/webhooks", post(handlers::register_webhook::<R>))
+            .route("/api/webhooks", get(handlers::list_webhooks::<R>))
+            .layer(middleware::from_fn_with_state(
+                self.rate_limiter.clone(),
+                rate_limit_middleware,
+            ))
+            .layer(middleware::from_fn_with_state(
+                self.state.clone(),
+                auth_middleware::<R>,
+            ))
             .layer(TraceLayer::new_for_http())
             .with_state(self.state.clone())
     }

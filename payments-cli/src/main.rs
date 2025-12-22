@@ -40,6 +40,17 @@ enum Commands {
         #[command(subcommand)]
         action: TransactionCommands,
     },
+    /// Webhook operations
+    Webhook {
+        #[command(subcommand)]
+        action: WebhookCommands,
+    },
+    /// Bootstrap the first API key
+    Bootstrap {
+        /// Name for the new API key
+        #[arg(long, default_value = "bootstrap-key")]
+        name: String,
+    },
     /// Check API health
     Health,
 }
@@ -105,6 +116,27 @@ enum TransactionCommands {
         idempotency_key: Option<String>,
         #[arg(long)]
         reference: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum WebhookCommands {
+    /// Register a new webhook endpoint
+    Register {
+        /// URL to receive webhooks
+        #[arg(long)]
+        url: String,
+        /// Event types to subscribe to (comma-separated)
+        #[arg(long, value_delimiter = ',', default_value = "")]
+        events: Vec<String>,
+    },
+    /// List registered webhook endpoints
+    List,
+    /// Start a local webhook listener
+    Listen {
+        /// Port to listen on
+        #[arg(long, default_value = "3000")]
+        port: u16,
     },
 }
 
@@ -208,7 +240,47 @@ async fn main() -> Result<()> {
                 println!("{}", serde_json::to_string_pretty(&tx)?);
             }
         },
+
+        Commands::Webhook { action } => match action {
+            WebhookCommands::Register { url, events } => {
+                // Filter out empty strings from events
+                let events: Vec<String> = events.into_iter().filter(|e| !e.is_empty()).collect();
+                let webhook = client.register_webhook(&url, events).await?;
+                println!("{}", serde_json::to_string_pretty(&webhook)?);
+            }
+            WebhookCommands::List => {
+                let webhooks = client.list_webhooks().await?;
+                println!("{}", serde_json::to_string_pretty(&webhooks)?);
+            }
+            WebhookCommands::Listen { port } => {
+                let app =
+                    axum::Router::new().route("/webhook", axum::routing::post(handle_webhook));
+                let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+                println!("Listening for webhooks on {}", addr);
+                let listener = tokio::net::TcpListener::bind(&addr).await?;
+                axum::serve(listener, app).await?;
+            }
+        },
+
+        Commands::Bootstrap { name } => {
+            let api_key = client.bootstrap(&name).await?;
+            println!("{}", api_key);
+        }
     }
 
     Ok(())
+}
+
+async fn handle_webhook(
+    headers: axum::http::HeaderMap,
+    body: String,
+) -> impl axum::response::IntoResponse {
+    println!("POST /webhook HTTP/1.1");
+    for (name, value) in &headers {
+        println!("{}: {:?}", name, value);
+    }
+    println!();
+    println!("{}", body);
+    println!("----------------------------------------");
+    axum::http::StatusCode::OK
 }

@@ -138,6 +138,49 @@ impl TransactionRepository for Repo {
     ) -> Result<Vec<Transaction>, RepoError> {
         self.inner.list_transactions_for_account(account_id).await
     }
+
+    async fn verify_api_key_hash(
+        &self,
+        key_hash: &str,
+    ) -> Result<Option<payments_types::ApiKey>, RepoError> {
+        self.inner.verify_api_key_hash(key_hash).await
+    }
+
+    async fn create_api_key(
+        &self,
+        name: &str,
+    ) -> Result<(payments_types::ApiKey, String), RepoError> {
+        self.inner.create_api_key(name).await
+    }
+
+    async fn count_api_keys(&self) -> Result<i64, RepoError> {
+        self.inner.count_api_keys().await
+    }
+
+    async fn register_webhook_endpoint(
+        &self,
+        url: &str,
+        events: Vec<String>,
+    ) -> Result<payments_types::WebhookEndpoint, RepoError> {
+        self.inner.register_webhook_endpoint(url, events).await
+    }
+
+    async fn list_webhook_endpoints(
+        &self,
+    ) -> Result<Vec<payments_types::WebhookEndpoint>, RepoError> {
+        self.inner.list_webhook_endpoints().await
+    }
+
+    async fn create_webhook_event(
+        &self,
+        endpoint_id: payments_types::WebhookEndpointId,
+        event_type: &str,
+        payload: serde_json::Value,
+    ) -> Result<payments_types::WebhookEvent, RepoError> {
+        self.inner
+            .create_webhook_event(endpoint_id, event_type, payload)
+            .await
+    }
 }
 
 #[cfg(feature = "postgres")]
@@ -180,5 +223,48 @@ impl TransactionRepository for Repo {
         account_id: AccountId,
     ) -> Result<Vec<Transaction>, RepoError> {
         self.inner.list_transactions_for_account(account_id).await
+    }
+
+    async fn verify_api_key_hash(
+        &self,
+        key_hash: &str,
+    ) -> Result<Option<payments_types::ApiKey>, RepoError> {
+        self.inner.verify_api_key_hash(key_hash).await
+    }
+
+    async fn create_api_key(
+        &self,
+        name: &str,
+    ) -> Result<(payments_types::ApiKey, String), RepoError> {
+        self.inner.create_api_key(name).await
+    }
+
+    async fn count_api_keys(&self) -> Result<i64, RepoError> {
+        self.inner.count_api_keys().await
+    }
+
+    async fn register_webhook_endpoint(
+        &self,
+        url: &str,
+        events: Vec<String>,
+    ) -> Result<payments_types::WebhookEndpoint, RepoError> {
+        self.inner.register_webhook_endpoint(url, events).await
+    }
+
+    async fn list_webhook_endpoints(
+        &self,
+    ) -> Result<Vec<payments_types::WebhookEndpoint>, RepoError> {
+        self.inner.list_webhook_endpoints().await
+    }
+
+    async fn create_webhook_event(
+        &self,
+        endpoint_id: payments_types::WebhookEndpointId,
+        event_type: &str,
+        payload: serde_json::Value,
+    ) -> Result<payments_types::WebhookEvent, RepoError> {
+        self.inner
+            .create_webhook_event(endpoint_id, event_type, payload)
+            .await
     }
 }

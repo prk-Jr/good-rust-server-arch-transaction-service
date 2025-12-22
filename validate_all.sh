@@ -76,7 +76,7 @@ run_warn "cargo clippy (all targets, all features)" cargo clippy --all-targets -
 run_required "payments-types tests" cargo test -p payments-types
 run_required "payments-repo tests (postgres)" cargo test -p payments-repo --features postgres
 run_required "payments-repo tests (sqlite)" cargo test -p payments-repo --no-default-features --features sqlite
-run_required "payments-hex tests" cargo test -p payments-hex
+run_required "payments-hex tests" cargo test -p payments-hex --features sqlite
 run_required "payments-client tests" cargo test -p payments-client
 run_required "payments-app tests (postgres default)" cargo test -p payments-app
 run_required "payments-app tests (sqlite feature)" cargo test -p payments-app --no-default-features --features sqlite

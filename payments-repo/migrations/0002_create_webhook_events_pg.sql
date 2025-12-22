@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS webhook_events (
     id UUID PRIMARY KEY,
+    endpoint_id UUID NOT NULL,
     event_type TEXT NOT NULL,
     payload JSONB NOT NULL,
     status TEXT NOT NULL DEFAULT 'PENDING',
@@ -8,5 +9,6 @@ CREATE TABLE IF NOT EXISTS webhook_events (
     attempts INTEGER NOT NULL DEFAULT 0,
     last_error TEXT
 );
---SPLIT--
+
 CREATE INDEX IF NOT EXISTS idx_webhook_status ON webhook_events(status, created_at);
+

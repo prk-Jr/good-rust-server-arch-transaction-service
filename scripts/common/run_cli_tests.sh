@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Shared CLI test logic
 # Requires CLI variable to be set to the command prefix (e.g. "cargo run -p payments-cli --")
+# Requires BASE_URL variable to be set for bootstrap
 
 set -euo pipefail
 source "$(dirname "$0")/../common/lib.sh"
@@ -10,11 +11,30 @@ if [ -z "${CLI:-}" ]; then
     exit 1
 fi
 
+if [ -z "${BASE_URL:-}" ]; then
+    print_error "BASE_URL variable not set"
+    exit 1
+fi
+
 TESTS_PASSED=0
 TESTS_FAILED=0
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Test: Health check
+# BOOTSTRAP - Get API Key
+# ─────────────────────────────────────────────────────────────────────────────
+print_step "Bootstrapping API Key..."
+BOOTSTRAP_RESP=$(curl -s -X POST "$BASE_URL/api/bootstrap" -H "Content-Type: application/json" -d '{"name":"cli-test-key"}')
+API_KEY=$(echo "$BOOTSTRAP_RESP" | grep -o '"api_key":"[^"]*"' | cut -d'"' -f4)
+if [[ -n "$API_KEY" ]]; then
+    print_success "API Key obtained: ${API_KEY:0:10}..."
+    export PAYMENTS_API_KEY="$API_KEY"
+else
+    print_error "Failed to get API key: $BOOTSTRAP_RESP"
+    exit 1
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Test: Health check (no auth needed)
 # ─────────────────────────────────────────────────────────────────────────────
 print_step "Testing health endpoint..."
 if $CLI health; then

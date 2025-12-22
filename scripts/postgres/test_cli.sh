@@ -22,6 +22,7 @@ docker compose -f docker-compose.test.yml up -d --build
 print_step "Waiting for services..."
 sleep 5
 export PAYMENTS_API_URL="http://localhost:3000"
+export BASE_URL="http://localhost:3000"
 
 # Wait for healthy
 MAX_RETRIES=30
