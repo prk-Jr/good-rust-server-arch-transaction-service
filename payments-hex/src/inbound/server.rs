@@ -44,6 +44,9 @@ impl<R: TransactionRepository> HttpServer<R> {
 
     /// Builds the Axum router with all routes.
     pub fn router(&self) -> Router {
+        // Build HTTP metrics layer (uses globally set MeterProvider)
+        let metrics = axum_otel_metrics::HttpMetricsLayerBuilder::new().build();
+
         Router::new()
             .route("/health", get(handlers::health))
             .route("/api/bootstrap", post(handlers::bootstrap::<R>))
@@ -59,6 +62,7 @@ impl<R: TransactionRepository> HttpServer<R> {
             .route("/api/transactions/transfer", post(handlers::transfer::<R>))
             .route("/api/webhooks", post(handlers::register_webhook::<R>))
             .route("/api/webhooks", get(handlers::list_webhooks::<R>))
+            .layer(metrics)
             .layer(middleware::from_fn_with_state(
                 self.rate_limiter.clone(),
                 rate_limit_middleware,

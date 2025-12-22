@@ -241,11 +241,23 @@ The service integrates OpenTelemetry for distributed tracing, exporting spans vi
 - `register_webhook` / `list_webhooks` (fields: `url`)
 - `bootstrap` (fields: `key_name`)
 
-**Configuration:**
+### HTTP Metrics
+
+HTTP server metrics are exported via OTLP/HTTP using `axum-otel-metrics`:
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `http.server.active_requests` | Gauge | Current active HTTP requests |
+| `http.server.request.duration` | Histogram | Request latency distribution |
+| `http.server.request.body.size` | Histogram | Request body size |
+| `http.server.response.body.size` | Histogram | Response body size |
+
+### Configuration:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Collector URL | `http://localhost:4317` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Collector URL (traces via gRPC) | `http://localhost:4317` |
+| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | Collector URL (metrics via HTTP) | `http://localhost:4318` |
 | `OTEL_SERVICE_NAME` | Service identifier | `payments-service` |
 
 **Viewing Traces:**

@@ -9,7 +9,11 @@
 mod config;
 
 use opentelemetry::global;
-use opentelemetry_sdk::{propagation::TraceContextPropagator, trace as sdktrace};
+use opentelemetry_sdk::{
+    metrics::{PeriodicReader, SdkMeterProvider, Temporality},
+    propagation::TraceContextPropagator,
+    trace as sdktrace,
+};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use payments_hex::{PaymentService, inbound::HttpServer};
@@ -22,7 +26,7 @@ fn init_tracer() -> (sdktrace::Tracer, sdktrace::SdkTracerProvider) {
     let exporter = opentelemetry_otlp::SpanExporter::builder()
         .with_tonic()
         .build()
-        .expect("failed to create OTLP exporter");
+        .expect("failed to create OTLP span exporter");
 
     let provider = sdktrace::SdkTracerProvider::builder()
         .with_batch_exporter(exporter)
@@ -34,16 +38,37 @@ fn init_tracer() -> (sdktrace::Tracer, sdktrace::SdkTracerProvider) {
     (provider.tracer("payments-service"), provider)
 }
 
+fn init_meter() -> SdkMeterProvider {
+    // Use gRPC exporter for metrics (same as traces, port 4317)
+    let exporter = opentelemetry_otlp::MetricExporter::builder()
+        .with_tonic()
+        .with_temporality(Temporality::default())
+        .build()
+        .expect("failed to create OTLP metrics exporter");
+
+    let reader = PeriodicReader::builder(exporter)
+        .with_interval(std::time::Duration::from_secs(30))
+        .build();
+
+    let provider = SdkMeterProvider::builder().with_reader(reader).build();
+
+    global::set_meter_provider(provider.clone());
+    provider
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Load environment variables
     dotenvy::dotenv().ok();
 
-    // Initialize OpenTelemetry
-    let (otel_tracer, otel_provider) = init_tracer();
+    // Initialize OpenTelemetry tracing
+    let (otel_tracer, otel_trace_provider) = init_tracer();
     let telemetry = tracing_opentelemetry::layer().with_tracer(otel_tracer);
 
-    // Initialize tracing
+    // Initialize OpenTelemetry metrics
+    let otel_meter_provider = init_meter();
+
+    // Initialize tracing subscriber
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -71,7 +96,8 @@ async fn main() -> anyhow::Result<()> {
 
     server.run(&addr).await?;
 
-    // Ensure traces are flushed before exit
-    let _ = otel_provider.shutdown();
+    // Ensure traces and metrics are flushed before exit
+    let _ = otel_trace_provider.shutdown();
+    let _ = otel_meter_provider.shutdown();
     Ok(())
 }
