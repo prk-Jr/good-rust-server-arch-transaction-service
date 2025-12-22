@@ -18,6 +18,16 @@ services:
       timeout: 5s
       retries: 5
 
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: payments-jaeger
+    ports:
+      - "16686:16686" # UI
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+
   app:
     build:
       context: .
@@ -29,6 +39,8 @@ services:
       DATABASE_URL: postgres://user:password@db:5432/payments
       PORT: 3000
       RUST_LOG: info,payments=debug
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      OTEL_SERVICE_NAME: payments-service
     depends_on:
       db:
         condition: service_healthy

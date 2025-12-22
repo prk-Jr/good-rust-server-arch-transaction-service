@@ -63,6 +63,7 @@ pub async fn health() -> impl IntoResponse {
 }
 
 /// Create a new account.
+#[tracing::instrument(skip(state), fields(owner = %req.name))]
 pub async fn create_account<R: TransactionRepository>(
     State(state): State<Arc<AppState<R>>>,
     Json(req): Json<CreateAccountRequest>,
@@ -72,6 +73,7 @@ pub async fn create_account<R: TransactionRepository>(
 }
 
 /// List all accounts.
+#[tracing::instrument(skip(state))]
 pub async fn list_accounts<R: TransactionRepository>(
     State(state): State<Arc<AppState<R>>>,
 ) -> Result<impl IntoResponse, ApiError> {
@@ -80,6 +82,7 @@ pub async fn list_accounts<R: TransactionRepository>(
 }
 
 /// Get account by ID.
+#[tracing::instrument(skip(state), fields(account_id = %id))]
 pub async fn get_account<R: TransactionRepository>(
     State(state): State<Arc<AppState<R>>>,
     Path(id): Path<String>,
@@ -93,6 +96,7 @@ pub async fn get_account<R: TransactionRepository>(
 }
 
 /// Deposit money into an account.
+#[tracing::instrument(skip(state), fields(account_id = %req.account_id, amount = req.amount))]
 pub async fn deposit<R: TransactionRepository>(
     State(state): State<Arc<AppState<R>>>,
     Json(req): Json<DepositRequest>,
@@ -102,6 +106,7 @@ pub async fn deposit<R: TransactionRepository>(
 }
 
 /// Withdraw money from an account.
+#[tracing::instrument(skip(state), fields(account_id = %req.account_id, amount = req.amount))]
 pub async fn withdraw<R: TransactionRepository>(
     State(state): State<Arc<AppState<R>>>,
     Json(req): Json<WithdrawRequest>,
@@ -111,6 +116,7 @@ pub async fn withdraw<R: TransactionRepository>(
 }
 
 /// Transfer money between accounts.
+#[tracing::instrument(skip(state), fields(from = %req.from_account_id, to = %req.to_account_id, amount = req.amount))]
 pub async fn transfer<R: TransactionRepository>(
     State(state): State<Arc<AppState<R>>>,
     Json(req): Json<TransferRequest>,
@@ -120,6 +126,7 @@ pub async fn transfer<R: TransactionRepository>(
 }
 
 /// List transactions for an account.
+#[tracing::instrument(skip(state), fields(account_id = %id))]
 pub async fn list_transactions<R: TransactionRepository>(
     State(state): State<Arc<AppState<R>>>,
     Path(id): Path<String>,
@@ -136,7 +143,7 @@ pub async fn list_transactions<R: TransactionRepository>(
 ///
 /// This endpoint only works when there are NO existing API keys in the system.
 /// It returns the raw API key (only shown once) that should be saved securely.
-#[derive(serde::Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 pub struct BootstrapRequest {
     pub name: String,
 }
@@ -147,6 +154,7 @@ pub struct BootstrapResponse {
     pub message: String,
 }
 
+#[tracing::instrument(skip(state), fields(key_name = %req.name))]
 pub async fn bootstrap<R: TransactionRepository>(
     State(state): State<Arc<AppState<R>>>,
     Json(req): Json<BootstrapRequest>,
@@ -188,6 +196,7 @@ pub async fn bootstrap<R: TransactionRepository>(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Register a new webhook endpoint.
+#[tracing::instrument(skip(state), fields(url = %req.url))]
 pub async fn register_webhook<R: TransactionRepository>(
     State(state): State<Arc<AppState<R>>>,
     Json(req): Json<payments_types::RegisterWebhookRequest>,
@@ -217,6 +226,7 @@ pub async fn register_webhook<R: TransactionRepository>(
 }
 
 /// List all active webhook endpoints.
+#[tracing::instrument(skip(state))]
 pub async fn list_webhooks<R: TransactionRepository>(
     State(state): State<Arc<AppState<R>>>,
 ) -> Result<impl IntoResponse, ApiError> {

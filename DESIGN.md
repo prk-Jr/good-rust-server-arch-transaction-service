@@ -227,6 +227,31 @@ All balance-modifying operations use database transactions:
 | 404 | Resource not found |
 | 500 | Internal server error |
 
+## Observability
+
+### Distributed Tracing
+
+The service integrates OpenTelemetry for distributed tracing, exporting spans via OTLP/gRPC.
+
+**Instrumented Operations:**
+- `create_account` (fields: `owner`)
+- `get_account` / `list_accounts` (fields: `account_id`)
+- `deposit` / `withdraw` (fields: `account_id`, `amount`)
+- `transfer` (fields: `from`, `to`, `amount`)
+- `register_webhook` / `list_webhooks` (fields: `url`)
+- `bootstrap` (fields: `key_name`)
+
+**Configuration:**
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Collector URL | `http://localhost:4317` |
+| `OTEL_SERVICE_NAME` | Service identifier | `payments-service` |
+
+**Viewing Traces:**
+
+`docker compose up -d` starts Jaeger at [http://localhost:16686](http://localhost:16686).
+
 ## Trade-offs & Decisions
 
 ### 1. Integer Money vs Decimal
@@ -279,7 +304,7 @@ All balance-modifying operations use database transactions:
 ## Future Enhancements
 
 - [x] Rate limiting middleware
-- [ ] OpenTelemetry tracing integration
+- [x] OpenTelemetry tracing integration
 - [ ] Multi-currency exchange rates
 - [ ] Account statements/exports
 - [ ] Audit logging

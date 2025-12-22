@@ -71,11 +71,41 @@ impl<R: TransactionRepository> HttpServer<R> {
             .with_state(self.state.clone())
     }
 
-    /// Runs the server on the given address.
+    /// Runs the server on the given address with graceful shutdown.
     pub async fn run(self, addr: &str) -> anyhow::Result<()> {
         let listener = tokio::net::TcpListener::bind(addr).await?;
         tracing::info!("Server listening on {}", listener.local_addr()?);
-        axum::serve(listener, self.router()).await?;
+
+        axum::serve(listener, self.router())
+            .with_graceful_shutdown(shutdown_signal())
+            .await?;
+
         Ok(())
     }
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+
+    tracing::info!("Shutdown signal received, starting graceful shutdown...");
 }

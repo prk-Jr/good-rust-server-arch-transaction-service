@@ -18,7 +18,9 @@ rm -f /tmp/demo_webhooks.db
 print_step "Starting Payment Server (SQLite)..."
 export DATABASE_URL="sqlite:///tmp/demo_webhooks.db?mode=rwc"
 export PORT=3040
-export RUST_LOG=error
+export RUST_LOG=info,payments=debug
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4317"
+export OTEL_SERVICE_NAME="payments-service"
 
 # Start server in background
 cargo run -q -p payments-app --no-default-features --features sqlite &

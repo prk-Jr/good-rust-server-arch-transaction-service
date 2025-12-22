@@ -38,3 +38,6 @@ dashmap = { workspace = true }
 # HTTP Client for Webhooks
 reqwest = { workspace = true, features = ["json"] }
 
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+http-body-util = "0.1"

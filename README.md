@@ -11,6 +11,7 @@ A production-ready payment transaction service built with Rust, implementing hex
 - **Webhook Registration** - REST API for registering webhook endpoints
 - **Rate Limiting** - Per-API-key throttling (100 req/min)
 - **Idempotency** - Prevent duplicate transactions with idempotency keys
+- **Distributed Tracing** - OpenTelemetry integration with Jaeger UI
 - **Multiple Backends** - PostgreSQL (production) and SQLite (testing/development)
 
 ## 🏗️ Architecture
@@ -37,11 +38,13 @@ See [DESIGN.md](./DESIGN.md) for detailed architecture documentation.
 ### Running with PostgreSQL
 
 ```bash
-# Start database
+# Start database and Jaeger (for tracing)
 docker compose up -d
 
 # Run server
 cargo run -p payments-app
+
+# View traces at http://localhost:16686 (Jaeger UI)
 ```
 
 ### Running with SQLite
@@ -269,8 +272,8 @@ cargo test --workspace --features sqlite
 | `DATABASE_URL` | Database connection string | Required |
 | `RUST_LOG` | Log level | `info` |
 | `PAYMENTS_API_KEY` | API key (for CLI) | - |
-| `WEBHOOK_SECRET` | HMAC secret for webhook signing | - |
-| `WEBHOOK_URL` | Webhook endpoint URL | - |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OpenTelemetry collector URL | `http://localhost:4317` |
+| `OTEL_SERVICE_NAME` | Service name in traces | `payments-service` |
 
 ## 📄 License
 

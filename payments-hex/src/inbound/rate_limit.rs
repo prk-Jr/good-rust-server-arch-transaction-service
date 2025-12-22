@@ -96,3 +96,110 @@ pub async fn rate_limit_middleware(
 
     next.run(request).await
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn test_rate_limiter_allows_requests_within_limit() {
+        // Allow 5 requests per minute
+        let limiter = RateLimiterState::new(5, Duration::from_secs(60));
+
+        // All 5 requests should be allowed
+        for i in 1..=5 {
+            assert!(limiter.check("test-key"), "Request {} should be allowed", i);
+        }
+    }
+
+    #[test]
+    fn test_rate_limiter_blocks_excess_requests() {
+        // Allow only 3 requests per minute
+        let limiter = RateLimiterState::new(3, Duration::from_secs(60));
+
+        // First 3 requests should be allowed
+        assert!(limiter.check("test-key"), "Request 1 should be allowed");
+        assert!(limiter.check("test-key"), "Request 2 should be allowed");
+        assert!(limiter.check("test-key"), "Request 3 should be allowed");
+
+        // 4th request should be blocked
+        assert!(!limiter.check("test-key"), "Request 4 should be blocked");
+        assert!(
+            !limiter.check("test-key"),
+            "Request 5 should also be blocked"
+        );
+    }
+
+    #[test]
+    fn test_rate_limiter_per_key_isolation() {
+        // Allow 2 requests per minute per key
+        let limiter = RateLimiterState::new(2, Duration::from_secs(60));
+
+        // Key A uses its quota
+        assert!(limiter.check("key-a"), "Key A request 1 should be allowed");
+        assert!(limiter.check("key-a"), "Key A request 2 should be allowed");
+        assert!(!limiter.check("key-a"), "Key A request 3 should be blocked");
+
+        // Key B should have its own separate quota
+        assert!(limiter.check("key-b"), "Key B request 1 should be allowed");
+        assert!(limiter.check("key-b"), "Key B request 2 should be allowed");
+        assert!(!limiter.check("key-b"), "Key B request 3 should be blocked");
+    }
+
+    #[test]
+    fn test_rate_limiter_default_config() {
+        // Default is 100 requests per 60 seconds
+        let limiter = RateLimiterState::default();
+
+        // Should allow 100 requests
+        for i in 1..=100 {
+            assert!(
+                limiter.check("default-key"),
+                "Request {} should be allowed",
+                i
+            );
+        }
+
+        // 101st request should be blocked
+        assert!(
+            !limiter.check("default-key"),
+            "Request 101 should be blocked"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_rate_limiter_quota_replenishes() {
+        // Allow 2 requests per 100ms (very short period for testing)
+        let limiter = RateLimiterState::new(2, Duration::from_millis(100));
+
+        // Use up the quota
+        assert!(limiter.check("replenish-key"));
+        assert!(limiter.check("replenish-key"));
+        assert!(!limiter.check("replenish-key"), "Should be rate limited");
+
+        // Wait for quota to replenish
+        tokio::time::sleep(Duration::from_millis(150)).await;
+
+        // Should be allowed again
+        assert!(
+            limiter.check("replenish-key"),
+            "Quota should have replenished"
+        );
+    }
+
+    #[test]
+    fn test_rate_limiter_multiple_keys_independent() {
+        let limiter = RateLimiterState::new(1, Duration::from_secs(60));
+
+        // Each unique key gets 1 request
+        assert!(limiter.check("key-1"));
+        assert!(limiter.check("key-2"));
+        assert!(limiter.check("key-3"));
+
+        // But same keys are blocked
+        assert!(!limiter.check("key-1"));
+        assert!(!limiter.check("key-2"));
+        assert!(!limiter.check("key-3"));
+    }
+}
