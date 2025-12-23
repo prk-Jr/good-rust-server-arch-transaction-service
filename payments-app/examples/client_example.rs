@@ -62,6 +62,17 @@ async fn main() -> anyhow::Result<()> {
     let health = client.health().await?;
     println!("✅ Server health: {health}");
 
+    //assert response is error unauthorized
+    let response = client.create_account("Alice Corp", Currency::USD).await;
+    assert!(response.is_err());
+    println!("✅ Unauthorized without key: {}", response.unwrap_err());
+
+    // key
+    let key = client.bootstrap("test").await?;
+    println!("✅ Server key generated: {key}");
+
+    let client = client.with_api_key(key);
+
     // Create accounts
     let alice = client.create_account("Alice Corp", Currency::USD).await?;
     println!("✅ Created account: {} (id={})", alice.name, alice.id);
