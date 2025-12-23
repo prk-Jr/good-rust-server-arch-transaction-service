@@ -236,23 +236,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "axum-otel-metrics"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d82cf7343b4fc88312e4d7b731152a1a09edcdb6def398d836ef8bccb57f066a"
-dependencies = [
- "axum 0.8.7",
- "futures-util",
- "http",
- "http-body",
- "opentelemetry 0.30.0",
- "opentelemetry-semantic-conventions",
- "opentelemetry_sdk 0.30.0",
- "pin-project-lite",
- "tower 0.5.2",
-]
-
-[[package]]
 name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1491,20 +1474,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "opentelemetry"
-version = "0.30.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aaf416e4cb72756655126f7dd7bb0af49c674f4c1b9903e80c009e0c37e552e6"
-dependencies = [
- "futures-core",
- "futures-sink",
- "js-sys",
- "pin-project-lite",
- "thiserror",
- "tracing",
-]
-
-[[package]]
 name = "opentelemetry-http"
 version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1513,7 +1482,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "http",
- "opentelemetry 0.28.0",
+ "opentelemetry",
  "reqwest",
  "tracing",
 ]
@@ -1527,10 +1496,10 @@ dependencies = [
  "async-trait",
  "futures-core",
  "http",
- "opentelemetry 0.28.0",
+ "opentelemetry",
  "opentelemetry-http",
  "opentelemetry-proto",
- "opentelemetry_sdk 0.28.0",
+ "opentelemetry_sdk",
  "prost",
  "reqwest",
  "thiserror",
@@ -1545,17 +1514,11 @@ version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56f8870d3024727e99212eb3bb1762ec16e255e3e6f58eeb3dc8db1aa226746d"
 dependencies = [
- "opentelemetry 0.28.0",
- "opentelemetry_sdk 0.28.0",
+ "opentelemetry",
+ "opentelemetry_sdk",
  "prost",
  "tonic",
 ]
-
-[[package]]
-name = "opentelemetry-semantic-conventions"
-version = "0.30.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83d059a296a47436748557a353c5e6c5705b9470ef6c95cfc52c21a8814ddac2"
 
 [[package]]
 name = "opentelemetry_sdk"
@@ -1568,7 +1531,7 @@ dependencies = [
  "futures-executor",
  "futures-util",
  "glob",
- "opentelemetry 0.28.0",
+ "opentelemetry",
  "percent-encoding",
  "rand 0.8.5",
  "serde_json",
@@ -1576,22 +1539,6 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tracing",
-]
-
-[[package]]
-name = "opentelemetry_sdk"
-version = "0.30.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11f644aa9e5e31d11896e024305d7e3c98a88884d9f8919dbf37a9991bc47a4b"
-dependencies = [
- "futures-channel",
- "futures-executor",
- "futures-util",
- "opentelemetry 0.30.0",
- "percent-encoding",
- "rand 0.9.2",
- "serde_json",
- "thiserror",
 ]
 
 [[package]]
@@ -1629,11 +1576,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum 0.8.7",
- "axum-otel-metrics",
  "dotenvy",
- "opentelemetry 0.28.0",
+ "opentelemetry",
  "opentelemetry-otlp",
- "opentelemetry_sdk 0.28.0",
+ "opentelemetry_sdk",
  "payments-client",
  "payments-hex",
  "payments-repo",
@@ -1679,11 +1625,9 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum 0.8.7",
- "axum-otel-metrics",
  "dashmap",
  "governor",
  "http-body-util",
- "opentelemetry 0.28.0",
  "payments-repo",
  "payments-types",
  "reqwest",
@@ -2917,8 +2861,8 @@ checksum = "721f2d2569dce9f3dfbbddee5906941e953bfcdf736a62da3377f5751650cc36"
 dependencies = [
  "js-sys",
  "once_cell",
- "opentelemetry 0.28.0",
- "opentelemetry_sdk 0.28.0",
+ "opentelemetry",
+ "opentelemetry_sdk",
  "smallvec",
  "tracing",
  "tracing-core",

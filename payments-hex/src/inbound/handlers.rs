@@ -62,12 +62,13 @@ pub async fn health() -> impl IntoResponse {
     Json(serde_json::json!({ "status": "healthy" }))
 }
 
-/// Create a new account.
-#[tracing::instrument(skip(state), fields(owner = %req.name))]
+// #[tracing::instrument(skip(state), fields(owner = %req.name))]
+#[tracing::instrument(skip(state))]
 pub async fn create_account<R: TransactionRepository>(
     State(state): State<Arc<AppState<R>>>,
     Json(req): Json<CreateAccountRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
+    tracing::info!("👉 ENTERING create_account handler for {}", req.name);
     let account = state.service.create_account(req).await?;
     Ok((StatusCode::CREATED, Json(account)))
 }

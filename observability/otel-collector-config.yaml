@@ -1,0 +1,54 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 10s
+
+# SpanMetrics connector: derives RED metrics from traces for Jaeger SPM
+connectors:
+  spanmetrics:
+    namespace: "traces_span_metrics"
+    histogram:
+      explicit:
+        buckets: [5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s]
+      unit: ms
+    dimensions:
+      - name: http.method
+      - name: http.status_code
+      - name: http.route
+    dimensions_cache_size: 1000
+    aggregation_temporality: AGGREGATION_TEMPORALITY_CUMULATIVE
+    metrics_flush_interval: 15s
+
+exporters:
+  # Export traces to Jaeger
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+
+  # Export span metrics to Prometheus (for Jaeger SPM)
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    namespace: ""
+    resource_to_telemetry_conversion:
+      enabled: true
+
+service:
+  pipelines:
+    # Traces: receive OTLP, send to Jaeger AND spanmetrics connector
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/jaeger, spanmetrics]
+    
+    # Metrics derived from spans: spanmetrics -> Prometheus
+    metrics/spanmetrics:
+      receivers: [spanmetrics]
+      exporters: [prometheus]

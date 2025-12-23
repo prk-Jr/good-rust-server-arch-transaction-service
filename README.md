@@ -38,14 +38,17 @@ See [DESIGN.md](./DESIGN.md) for detailed architecture documentation.
 ### Running with PostgreSQL
 
 ```bash
-# Start database and Jaeger (for tracing)
+# Start full stack (PostgreSQL, OTel Collector, Prometheus, Grafana, Jaeger)
 docker compose up -d
 
 # Run server
 cargo run -p payments-app
-
-# View traces at http://localhost:16686 (Jaeger UI)
 ```
+
+**Observability Dashboards:**
+- **Traces**: http://localhost:16686 (Jaeger)
+- **Metrics**: http://localhost:9090 (Prometheus)
+- **Dashboards**: http://localhost:3001 (Grafana, admin/admin)
 
 ### Running with SQLite
 

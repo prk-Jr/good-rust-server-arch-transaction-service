@@ -1,11 +1,9 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:15-alpine
     container_name: payments-postgres
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
@@ -18,15 +16,67 @@ services:
       timeout: 5s
       retries: 5
 
+  # OpenTelemetry Collector - receives OTLP and exports to Jaeger/Prometheus
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: payments-otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./observability/otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "8889:8889"   # Prometheus metrics endpoint
+
+  # Jaeger for distributed tracing + SPM (Service Performance Monitoring)
   jaeger:
     image: jaegertracing/all-in-one:latest
     container_name: payments-jaeger
     ports:
       - "16686:16686" # UI
-      - "4317:4317"   # OTLP gRPC
-      - "4318:4318"   # OTLP HTTP
+      - "4319:4317"   # OTLP gRPC (exposed for direct app access debugging)
     environment:
       - COLLECTOR_OTLP_ENABLED=true
+      # Enable SPM Monitor tab
+      - METRICS_STORAGE_TYPE=prometheus
+      - PROMETHEUS_SERVER_URL=http://prometheus:9090
+      - PROMETHEUS_QUERY_SUPPORT_SPANMETRICS_CONNECTOR=true
+      # Normalize metric names from spanmetrics connector
+      - PROMETHEUS_QUERY_NORMALIZE_CALLS=true
+      - PROMETHEUS_QUERY_NORMALIZE_DURATION=true
+    volumes:
+      - ./observability/jaeger-ui.json:/etc/jaeger/jaeger-ui.json
+    command: ["--query.ui-config", "/etc/jaeger/jaeger-ui.json"]
+
+  # Prometheus for metrics storage
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: payments-prometheus
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    depends_on:
+      - otel-collector
+
+  # Grafana for metrics visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: payments-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
 
   app:
     build:
@@ -38,12 +88,18 @@ services:
     environment:
       DATABASE_URL: postgres://user:password@db:5432/payments
       PORT: 3000
-      RUST_LOG: info,payments=debug
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      RUST_LOG: info,payments_app=debug,payments_hex=debug
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_EXPORTER_OTLP_INSECURE: "true"
       OTEL_SERVICE_NAME: payments-service
     depends_on:
       db:
         condition: service_healthy
+      otel-collector:
+        condition: service_started
 
 volumes:
   postgres_data:
+  prometheus_data:
+  grafana_data:

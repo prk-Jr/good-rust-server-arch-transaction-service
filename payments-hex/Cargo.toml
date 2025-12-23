@@ -28,7 +28,7 @@ serde_json = { workspace = true }
 
 # Utilities
 uuid = { workspace = true }
-tracing = { workspace = true }
+tracing = "0.1"
 anyhow = { workspace = true }
 
 # Rate limiting
@@ -37,10 +37,6 @@ dashmap = { workspace = true }
 
 # HTTP Client for Webhooks
 reqwest = { workspace = true, features = ["json"] }
-
-# Metrics
-axum-otel-metrics = "0.12.0"
-opentelemetry = "0.28.0"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
