@@ -3,7 +3,7 @@
 //! Axum-based HTTP server that drives the application layer.
 
 pub mod auth;
-mod handlers;
+pub mod handlers;
 pub mod rate_limit;
 mod server;
 

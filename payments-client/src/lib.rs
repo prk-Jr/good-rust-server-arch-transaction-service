@@ -33,6 +33,16 @@ pub struct WebhookResponse {
     pub is_active: bool,
 }
 
+/// API key information (without the raw key value).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApiKeyInfo {
+    pub id: String,
+    pub name: String,
+    pub is_active: bool,
+    pub created_at: String,
+    pub last_used_at: Option<String>,
+}
+
 /// Payments API client.
 pub struct PaymentsClient {
     base_url: String,
@@ -212,6 +222,39 @@ impl PaymentsClient {
         self.get("/api/webhooks").await
     }
 
+    // ─────────────────────────────────────────────────────────────────────────────
+    // API Key Management
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    /// Creates a new API key (requires authentication).
+    /// Returns the raw API key that should be saved securely.
+    pub async fn create_api_key(&self, name: &str) -> Result<String, ClientError> {
+        #[derive(serde::Serialize)]
+        struct CreateApiKeyRequest {
+            name: String,
+        }
+        #[derive(serde::Deserialize)]
+        struct CreateApiKeyResponse {
+            api_key: String,
+        }
+
+        let req = CreateApiKeyRequest {
+            name: name.to_string(),
+        };
+        let resp: CreateApiKeyResponse = self.post("/api/keys", &req).await?;
+        Ok(resp.api_key)
+    }
+
+    /// Lists all API keys (without exposing raw key values).
+    pub async fn list_api_keys(&self) -> Result<Vec<ApiKeyInfo>, ClientError> {
+        self.get("/api/keys").await
+    }
+
+    /// Deletes (deactivates) an API key by ID.
+    pub async fn delete_api_key(&self, id: &str) -> Result<(), ClientError> {
+        self.delete(&format!("/api/keys/{}", id)).await
+    }
+
     async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, ClientError> {
         let mut req = self.http.get(format!("{}{}", self.base_url, path));
         if let Some(key) = &self.api_key {
@@ -235,6 +278,28 @@ impl PaymentsClient {
         }
         let resp = req.send().await?;
         self.handle_response(resp).await
+    }
+
+    async fn delete(&self, path: &str) -> Result<(), ClientError> {
+        let mut req = self.http.delete(format!("{}{}", self.base_url, path));
+        if let Some(key) = &self.api_key {
+            req = req.header("Authorization", format!("Bearer {}", key));
+        }
+        let resp = req.send().await?;
+        let status = resp.status();
+        if status.is_success() {
+            Ok(())
+        } else {
+            let body = resp.text().await.unwrap_or_default();
+            let message = serde_json::from_str::<serde_json::Value>(&body)
+                .ok()
+                .and_then(|v| v.get("error").and_then(|e| e.as_str()).map(String::from))
+                .unwrap_or(body);
+            Err(ClientError::Api {
+                status: status.as_u16(),
+                message,
+            })
+        }
     }
 
     async fn handle_response<T: DeserializeOwned>(

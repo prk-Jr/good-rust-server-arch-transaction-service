@@ -11,9 +11,11 @@
 //! different repository implementations to be injected.
 
 pub mod inbound;
+pub mod openapi;
 pub mod service;
 
 #[cfg(test)]
 mod service_tests;
 
+pub use openapi::ApiDoc;
 pub use service::PaymentService;

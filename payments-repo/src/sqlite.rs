@@ -504,6 +504,70 @@ impl TransactionRepository for SqliteRepo {
         Ok(row.0)
     }
 
+    async fn list_api_keys(&self) -> Result<Vec<payments_types::ApiKey>, RepoError> {
+        #[derive(sqlx::FromRow)]
+        struct DbApiKey {
+            id: String,
+            name: String,
+            key_hash: String,
+            account_id: Option<String>,
+            is_active: bool,
+            created_at: String,
+            last_used_at: Option<String>,
+        }
+
+        let rows: Vec<DbApiKey> = sqlx::query_as(
+            "SELECT id, name, key_hash, account_id, is_active, created_at, last_used_at FROM api_keys WHERE is_active = 1 ORDER BY created_at DESC"
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        rows.into_iter()
+            .map(|row| {
+                let id = uuid::Uuid::parse_str(&row.id)
+                    .map_err(|e| RepoError::Database(e.to_string()))?;
+                let created_at = chrono::DateTime::parse_from_rfc3339(&row.created_at)
+                    .map_err(|e| RepoError::Database(e.to_string()))?
+                    .with_timezone(&chrono::Utc);
+                let last_used_at = row
+                    .last_used_at
+                    .map(|s| {
+                        chrono::DateTime::parse_from_rfc3339(&s)
+                            .map(|dt| dt.with_timezone(&chrono::Utc))
+                    })
+                    .transpose()
+                    .map_err(|e| RepoError::Database(e.to_string()))?;
+                let account_id = row
+                    .account_id
+                    .map(|s| uuid::Uuid::parse_str(&s).map(payments_types::AccountId::from_uuid))
+                    .transpose()
+                    .map_err(|e| RepoError::Database(e.to_string()))?;
+
+                Ok(payments_types::ApiKey {
+                    id: payments_types::ApiKeyId::from_uuid(id),
+                    name: row.name,
+                    key_hash: row.key_hash,
+                    account_id,
+                    is_active: row.is_active,
+                    created_at,
+                    last_used_at,
+                })
+            })
+            .collect()
+    }
+
+    async fn delete_api_key(&self, id: payments_types::ApiKeyId) -> Result<bool, RepoError> {
+        let result =
+            sqlx::query("UPDATE api_keys SET is_active = 0 WHERE id = ? AND is_active = 1")
+                .bind(id.to_string())
+                .execute(&self.pool)
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
     async fn register_webhook_endpoint(
         &self,
         url: &str,

@@ -145,7 +145,42 @@ CROSS_RESP=$(curl -s -X POST "$BASE_URL/api/transactions/transfer" -H "Content-T
 assert_contains "Cross-currency transfer" "error" "$CROSS_RESP" && TESTS_PASSED=$((TESTS_PASSED + 1)) || TESTS_FAILED=$((TESTS_FAILED + 1))
 
 # ─────────────────────────────────────────────────────────────────────────────
+# API KEY MANAGEMENT
+# ─────────────────────────────────────────────────────────────────────────────
+print_step "Testing API Key Management"
+
+# Create a new API key
+NEW_KEY_RESP=$(curl -s -X POST "$BASE_URL/api/keys" -H "Content-Type: application/json" -H "$AUTH_HEADER" -d '{"name":"test-key-2"}')
+assert_contains "Create API key response" "api_key" "$NEW_KEY_RESP" && TESTS_PASSED=$((TESTS_PASSED + 1)) || TESTS_FAILED=$((TESTS_FAILED + 1))
+
+# List API keys
+LIST_KEYS_RESP=$(curl -s -H "$AUTH_HEADER" "$BASE_URL/api/keys")
+assert_contains "List API keys - test-key" "test-key" "$LIST_KEYS_RESP" && TESTS_PASSED=$((TESTS_PASSED + 1)) || TESTS_FAILED=$((TESTS_FAILED + 1))
+assert_contains "List API keys - test-key-2" "test-key-2" "$LIST_KEYS_RESP" && TESTS_PASSED=$((TESTS_PASSED + 1)) || TESTS_FAILED=$((TESTS_FAILED + 1))
+
+# Get the ID of test-key-2 and delete it
+KEY2_ID=$(echo "$LIST_KEYS_RESP" | grep -o '"id":"[^"]*"[^}]*"name":"test-key-2"' | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
+if [[ -n "$KEY2_ID" ]]; then
+    DELETE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE "$BASE_URL/api/keys/$KEY2_ID" -H "$AUTH_HEADER")
+    assert_eq "Delete API key" "204" "$DELETE_STATUS" && TESTS_PASSED=$((TESTS_PASSED + 1)) || TESTS_FAILED=$((TESTS_FAILED + 1))
+    
+    # Verify key is deleted (list should only have test-key)
+    LIST_AFTER_DELETE=$(curl -s -H "$AUTH_HEADER" "$BASE_URL/api/keys")
+    if echo "$LIST_AFTER_DELETE" | grep -q "test-key-2"; then
+        print_error "Key should be deleted but still exists"
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+    else
+        print_success "Key successfully deleted"
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+    fi
+else
+    print_error "Could not extract KEY2_ID for delete test"
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Summary
+
 # ─────────────────────────────────────────────────────────────────────────────
 echo
 if [[ "$TESTS_FAILED" -eq 0 ]]; then

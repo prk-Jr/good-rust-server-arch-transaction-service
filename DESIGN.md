@@ -317,7 +317,44 @@ HTTP server metrics are exported via OTLP/HTTP using `axum-otel-metrics`:
 
 - [x] Rate limiting middleware
 - [x] OpenTelemetry tracing integration
+- [x] OpenAPI/Swagger documentation
 - [ ] Multi-currency exchange rates
 - [ ] Account statements/exports
 - [ ] Audit logging
 - [ ] Key rotation support
+
+## API Documentation
+
+Interactive API documentation is provided via **OpenAPI 3.0** specification with **Swagger UI**.
+
+### Endpoints
+
+- **Swagger UI**: `/swagger-ui` - Interactive API explorer with "Try it out" functionality
+- **OpenAPI JSON**: `/api-docs/openapi.json` - Raw OpenAPI 3.0 specification
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| **Interactive Testing** | Click "Try it out" on any endpoint to test directly |
+| **Authentication** | Click "Authorize" button to set Bearer token for protected endpoints |
+| **Request Schemas** | Full request body schemas with examples |
+| **Response Schemas** | Documented response formats for all status codes |
+| **Parameter Docs** | Path, query, and body parameter descriptions |
+
+### Implementation
+
+OpenAPI documentation is generated using `utoipa` crate with SwaggerUI integration:
+
+```rust
+// payments-hex/src/openapi.rs
+#[derive(OpenApi)]
+#[openapi(
+    paths(health, bootstrap, create_account, ...),
+    components(schemas(AccountResponse, DepositRequest, ...)),
+    modifiers(&SecurityAddon)
+)]
+pub struct ApiDoc;
+```
+
+The spec is served at runtime without requiring a separate OpenAPI YAML file.

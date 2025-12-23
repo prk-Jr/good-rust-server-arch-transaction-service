@@ -165,6 +165,16 @@ pub(crate) mod tests {
             Ok(0)
         }
 
+        async fn list_api_keys(&self) -> Result<Vec<payments_types::ApiKey>, RepoError> {
+            // Mock returns empty list
+            Ok(vec![])
+        }
+
+        async fn delete_api_key(&self, _id: payments_types::ApiKeyId) -> Result<bool, RepoError> {
+            // Mock always returns not found
+            Ok(false)
+        }
+
         async fn register_webhook_endpoint(
             &self,
             _url: &str,

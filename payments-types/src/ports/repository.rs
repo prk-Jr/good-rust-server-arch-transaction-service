@@ -70,6 +70,12 @@ pub trait TransactionRepository: Send + Sync + 'static {
     /// Counts the number of active API keys in the system.
     async fn count_api_keys(&self) -> Result<i64, RepoError>;
 
+    /// Lists all API keys (without exposing the raw keys).
+    async fn list_api_keys(&self) -> Result<Vec<crate::ApiKey>, RepoError>;
+
+    /// Deletes (deactivates) an API key by ID.
+    async fn delete_api_key(&self, id: crate::ApiKeyId) -> Result<bool, RepoError>;
+
     // ─────────────────────────────────────────────────────────────────────────────
     // Webhook Endpoint Management
     // ─────────────────────────────────────────────────────────────────────────────

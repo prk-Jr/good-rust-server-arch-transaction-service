@@ -157,6 +157,14 @@ impl TransactionRepository for Repo {
         self.inner.count_api_keys().await
     }
 
+    async fn list_api_keys(&self) -> Result<Vec<payments_types::ApiKey>, RepoError> {
+        self.inner.list_api_keys().await
+    }
+
+    async fn delete_api_key(&self, id: payments_types::ApiKeyId) -> Result<bool, RepoError> {
+        self.inner.delete_api_key(id).await
+    }
+
     async fn register_webhook_endpoint(
         &self,
         url: &str,
@@ -241,6 +249,14 @@ impl TransactionRepository for Repo {
 
     async fn count_api_keys(&self) -> Result<i64, RepoError> {
         self.inner.count_api_keys().await
+    }
+
+    async fn list_api_keys(&self) -> Result<Vec<payments_types::ApiKey>, RepoError> {
+        self.inner.list_api_keys().await
+    }
+
+    async fn delete_api_key(&self, id: payments_types::ApiKeyId) -> Result<bool, RepoError> {
+        self.inner.delete_api_key(id).await
     }
 
     async fn register_webhook_endpoint(

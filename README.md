@@ -12,6 +12,7 @@ A production-ready payment transaction service built with Rust, implementing hex
 - **Rate Limiting** - Per-API-key throttling (100 req/min)
 - **Idempotency** - Prevent duplicate transactions with idempotency keys
 - **Distributed Tracing** - OpenTelemetry integration with Jaeger UI
+- **OpenAPI Documentation** - Interactive Swagger UI with full API documentation
 - **Multiple Backends** - PostgreSQL (production) and SQLite (testing/development)
 
 ## 🏗️ Architecture
@@ -108,7 +109,20 @@ payments webhook register --url "http://localhost:3000/hook" --events "deposit.s
 payments webhook listen --port 3000
 ```
 
+### 6. API Key Management
+```bash
+# Create a new API key
+payments key create --name "production-key"
+
+# List all API keys
+payments key list
+
+# Delete an API key
+payments key delete --id <KEY_ID>
+```
+
 ## 🔐 Authentication
+
 
 All API endpoints (except `/health` and `/api/bootstrap`) require authentication.
 
@@ -135,6 +149,19 @@ Response:
 curl http://localhost:3000/api/accounts \
   -H "Authorization: Bearer sk_ABC123..."
 ```
+
+## 📖 API Documentation
+
+**Interactive API documentation is available via Swagger UI:**
+
+- **Swagger UI**: http://localhost:3000/swagger-ui
+- **OpenAPI JSON**: http://localhost:3000/api-docs/openapi.json
+
+Swagger UI provides:
+- Interactive "Try it out" functionality for all endpoints
+- Request/response schemas with examples
+- Authentication support (click "Authorize" button)
+- Full API reference with parameter descriptions
 
 ## 📡 API Reference
 

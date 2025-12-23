@@ -144,14 +144,19 @@ pub async fn list_transactions<R: TransactionRepository>(
 ///
 /// This endpoint only works when there are NO existing API keys in the system.
 /// It returns the raw API key (only shown once) that should be saved securely.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct BootstrapRequest {
+    /// Name for the API key
+    #[schema(example = "my-api-key")]
     pub name: String,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, utoipa::ToSchema)]
 pub struct BootstrapResponse {
+    /// The generated API key (shown only once)
+    #[schema(example = "sk_abc123xyz...")]
     pub api_key: String,
+    /// Informational message
     pub message: String,
 }
 
@@ -193,6 +198,109 @@ pub async fn bootstrap<R: TransactionRepository>(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// API Key Management
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Request to create a new API key.
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+pub struct CreateApiKeyRequest {
+    /// Name for the API key
+    #[schema(example = "production-key")]
+    pub name: String,
+}
+
+/// Response containing API key info (without the raw key).
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct ApiKeyInfo {
+    /// API key ID
+    #[schema(value_type = String, example = "123e4567-e89b-12d3-a456-426614174000")]
+    pub id: payments_types::ApiKeyId,
+    /// Name of the API key
+    pub name: String,
+    /// Whether the key is active
+    pub is_active: bool,
+    /// When the key was created (ISO 8601)
+    #[schema(value_type = String, example = "2024-01-01T00:00:00Z")]
+    pub created_at: String,
+    /// When the key was last used (ISO 8601)
+    #[schema(value_type = Option<String>)]
+    pub last_used_at: Option<String>,
+}
+
+/// Create a new API key (requires authentication).
+#[tracing::instrument(skip(state), fields(key_name = %req.name))]
+pub async fn create_api_key<R: TransactionRepository>(
+    State(state): State<Arc<AppState<R>>>,
+    Json(req): Json<CreateApiKeyRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    let (_api_key, raw_key) = state
+        .service
+        .repo()
+        .create_api_key(&req.name)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(BootstrapResponse {
+            api_key: raw_key,
+            message: "API key created. Save this key securely - it won't be shown again!".into(),
+        }),
+    ))
+}
+
+/// List all active API keys (without exposing raw keys).
+#[tracing::instrument(skip(state))]
+pub async fn list_api_keys<R: TransactionRepository>(
+    State(state): State<Arc<AppState<R>>>,
+) -> Result<impl IntoResponse, ApiError> {
+    let keys = state
+        .service
+        .repo()
+        .list_api_keys()
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    let response: Vec<ApiKeyInfo> = keys
+        .into_iter()
+        .map(|k| ApiKeyInfo {
+            id: k.id,
+            name: k.name,
+            is_active: k.is_active,
+            created_at: k.created_at.to_rfc3339(),
+            last_used_at: k.last_used_at.map(|dt| dt.to_rfc3339()),
+        })
+        .collect();
+
+    Ok(Json(response))
+}
+
+/// Delete (deactivate) an API key.
+#[tracing::instrument(skip(state), fields(key_id = %id))]
+pub async fn delete_api_key<R: TransactionRepository>(
+    State(state): State<Arc<AppState<R>>>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    let key_id: payments_types::ApiKeyId = id
+        .parse()
+        .map_err(|_| AppError::BadRequest("Invalid API key ID".into()))?;
+
+    let deleted = state
+        .service
+        .repo()
+        .delete_api_key(key_id)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    if deleted {
+        Ok(StatusCode::NO_CONTENT.into_response())
+    } else {
+        Err(AppError::NotFound("API key not found".into()).into())
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Webhooks
 // ─────────────────────────────────────────────────────────────────────────────
 

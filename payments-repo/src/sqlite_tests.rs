@@ -434,4 +434,101 @@ mod tests {
         let events_after = repo.get_pending_webhooks(10).await.unwrap();
         assert!(events_after.is_empty());
     }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // API Key Management Tests
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_create_api_key() {
+        let repo = setup_repo().await;
+
+        // Count should start at 0
+        let count_before = repo.count_api_keys().await.unwrap();
+        assert_eq!(count_before, 0);
+
+        // Create an API key
+        let (api_key, raw_key) = repo.create_api_key("test-key").await.unwrap();
+
+        assert_eq!(api_key.name, "test-key");
+        assert!(api_key.is_active);
+        assert!(raw_key.starts_with("sk_"));
+        assert_eq!(raw_key.len(), 35); // "sk_" + 32 chars
+
+        // Count should be 1 now
+        let count_after = repo.count_api_keys().await.unwrap();
+        assert_eq!(count_after, 1);
+    }
+
+    #[tokio::test]
+    async fn test_list_api_keys() {
+        let repo = setup_repo().await;
+
+        // Create multiple API keys
+        repo.create_api_key("key-1").await.unwrap();
+        repo.create_api_key("key-2").await.unwrap();
+        repo.create_api_key("key-3").await.unwrap();
+
+        // List all keys
+        let keys = repo.list_api_keys().await.unwrap();
+
+        assert_eq!(keys.len(), 3);
+
+        // Keys should be ordered by created_at DESC (most recent first)
+        let names: Vec<&str> = keys.iter().map(|k| k.name.as_str()).collect();
+        assert!(names.contains(&"key-1"));
+        assert!(names.contains(&"key-2"));
+        assert!(names.contains(&"key-3"));
+    }
+
+    #[tokio::test]
+    async fn test_delete_api_key() {
+        let repo = setup_repo().await;
+
+        // Create an API key
+        let (api_key, _raw_key) = repo.create_api_key("to-delete").await.unwrap();
+
+        // Verify it exists
+        let count_before = repo.count_api_keys().await.unwrap();
+        assert_eq!(count_before, 1);
+
+        // Delete the key
+        let deleted = repo.delete_api_key(api_key.id).await.unwrap();
+        assert!(deleted);
+
+        // Verify it no longer exists in active keys
+        let count_after = repo.count_api_keys().await.unwrap();
+        assert_eq!(count_after, 0);
+
+        // List should return empty
+        let keys = repo.list_api_keys().await.unwrap();
+        assert!(keys.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_delete_api_key_not_found() {
+        let repo = setup_repo().await;
+
+        // Try to delete a non-existent key
+        let fake_id = payments_types::ApiKeyId::new();
+        let deleted = repo.delete_api_key(fake_id).await.unwrap();
+
+        assert!(!deleted);
+    }
+
+    #[tokio::test]
+    async fn test_delete_api_key_twice() {
+        let repo = setup_repo().await;
+
+        // Create an API key
+        let (api_key, _raw_key) = repo.create_api_key("double-delete").await.unwrap();
+
+        // First delete should succeed
+        let deleted_first = repo.delete_api_key(api_key.id).await.unwrap();
+        assert!(deleted_first);
+
+        // Second delete should fail (key already inactive)
+        let deleted_second = repo.delete_api_key(api_key.id).await.unwrap();
+        assert!(!deleted_second);
+    }
 }

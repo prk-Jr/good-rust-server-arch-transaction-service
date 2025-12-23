@@ -45,6 +45,11 @@ enum Commands {
         #[command(subcommand)]
         action: WebhookCommands,
     },
+    /// API key management
+    Key {
+        #[command(subcommand)]
+        action: KeyCommands,
+    },
     /// Bootstrap the first API key
     Bootstrap {
         /// Name for the new API key
@@ -137,6 +142,24 @@ enum WebhookCommands {
         /// Port to listen on
         #[arg(long, default_value = "3000")]
         port: u16,
+    },
+}
+
+#[derive(Subcommand)]
+enum KeyCommands {
+    /// Create a new API key
+    Create {
+        /// Name for the new key
+        #[arg(long)]
+        name: String,
+    },
+    /// List all API keys
+    List,
+    /// Delete (deactivate) an API key
+    Delete {
+        /// API key ID (UUID)
+        #[arg(long)]
+        id: String,
     },
 }
 
@@ -259,6 +282,21 @@ async fn main() -> Result<()> {
                 println!("Listening for webhooks on {}", addr);
                 let listener = tokio::net::TcpListener::bind(&addr).await?;
                 axum::serve(listener, app).await?;
+            }
+        },
+
+        Commands::Key { action } => match action {
+            KeyCommands::Create { name } => {
+                let api_key = client.create_api_key(&name).await?;
+                println!("{}", api_key);
+            }
+            KeyCommands::List => {
+                let keys = client.list_api_keys().await?;
+                println!("{}", serde_json::to_string_pretty(&keys)?);
+            }
+            KeyCommands::Delete { id } => {
+                client.delete_api_key(&id).await?;
+                println!("✓ API key deleted");
             }
         },
 

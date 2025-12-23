@@ -22,6 +22,10 @@ impl ApiKeyId {
     pub fn as_uuid(&self) -> &Uuid {
         &self.0
     }
+
+    pub fn into_uuid(self) -> Uuid {
+        self.0
+    }
 }
 
 impl Default for ApiKeyId {

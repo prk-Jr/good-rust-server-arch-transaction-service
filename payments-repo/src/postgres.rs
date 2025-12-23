@@ -515,6 +515,50 @@ impl TransactionRepository for PostgresRepo {
         Ok(row.0)
     }
 
+    async fn list_api_keys(&self) -> Result<Vec<payments_types::ApiKey>, RepoError> {
+        #[derive(sqlx::FromRow)]
+        struct DbApiKey {
+            id: Uuid,
+            name: String,
+            key_hash: String,
+            account_id: Option<Uuid>,
+            is_active: bool,
+            created_at: chrono::DateTime<Utc>,
+            last_used_at: Option<chrono::DateTime<Utc>>,
+        }
+
+        let rows: Vec<DbApiKey> = sqlx::query_as(
+            "SELECT id, name, key_hash, account_id, is_active, created_at, last_used_at FROM api_keys WHERE is_active = TRUE ORDER BY created_at DESC"
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| payments_types::ApiKey {
+                id: payments_types::ApiKeyId::from_uuid(row.id),
+                name: row.name,
+                key_hash: row.key_hash,
+                account_id: row.account_id.map(payments_types::AccountId::from_uuid),
+                is_active: row.is_active,
+                created_at: row.created_at,
+                last_used_at: row.last_used_at,
+            })
+            .collect())
+    }
+
+    async fn delete_api_key(&self, id: payments_types::ApiKeyId) -> Result<bool, RepoError> {
+        let result =
+            sqlx::query("UPDATE api_keys SET is_active = FALSE WHERE id = $1 AND is_active = TRUE")
+                .bind(id.into_uuid())
+                .execute(&self.pool)
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
     async fn register_webhook_endpoint(
         &self,
         url: &str,
