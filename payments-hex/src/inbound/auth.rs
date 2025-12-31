@@ -39,7 +39,7 @@ fn extract_api_key(auth_header: Option<&str>) -> Option<&str> {
 /// - `POST /api/bootstrap` - Creates the first API key (only works when no keys exist)
 pub async fn auth_middleware<R: TransactionRepository>(
     State(state): State<Arc<AppState<R>>>,
-    request: Request<Body>,
+    mut request: Request<Body>,
     next: Next,
 ) -> Response {
     // Skip authentication for health endpoint
@@ -70,8 +70,9 @@ pub async fn auth_middleware<R: TransactionRepository>(
 
     // Verify against database
     match state.service.repo().verify_api_key_hash(&key_hash).await {
-        Ok(Some(_api_key)) => {
+        Ok(Some(api_key)) => {
             // API key is valid, proceed with the request
+            request.extensions_mut().insert(api_key);
             next.run(request).await
         }
         Ok(None) => {

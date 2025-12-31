@@ -585,6 +585,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "exchange-rates"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror",
+ "utoipa",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1709,6 +1718,7 @@ dependencies = [
  "async-trait",
  "axum 0.8.7",
  "dashmap",
+ "exchange-rates",
  "governor",
  "http-body-util",
  "payments-repo",
@@ -1756,6 +1766,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
+ "exchange-rates",
  "serde",
  "serde_json",
  "thiserror",

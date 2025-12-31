@@ -12,6 +12,7 @@ postgres = ["payments-repo/postgres"]
 [dependencies]
 payments-types = { path = "../payments-types" }
 payments-repo = { path = "../payments-repo" }
+exchange-rates = { path = "../exchange-rates" }
 
 # Async
 tokio = { workspace = true }

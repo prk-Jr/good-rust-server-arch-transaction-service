@@ -89,6 +89,9 @@ impl<R: TransactionRepository> HttpServer<R> {
             .route("/health", get(handlers::health))
             // Bootstrap endpoint (no auth - for creating first API key)
             .route("/api/bootstrap", post(handlers::bootstrap::<R>))
+            // Exchange Rates (public - no auth required)
+            .route("/api/rates/{base}", get(handlers::get_rates))
+            .route("/api/convert", post(handlers::convert))
             // Merge protected routes
             .merge(protected_routes)
             .layer(TraceLayer::new_for_http())

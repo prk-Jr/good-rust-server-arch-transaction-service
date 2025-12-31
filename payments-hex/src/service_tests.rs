@@ -8,9 +8,9 @@ pub(crate) mod tests {
     use async_trait::async_trait;
 
     use payments_types::{
-        Account, AccountId, AppError, CreateAccountRequest, Currency, DepositRequest, DomainError,
-        Money, RepoError, Transaction, TransactionId, TransactionRepository, TransferRequest,
-        WithdrawRequest,
+        Account, AccountId, AppError, CreateAccountRequest, CurrencyCode, DepositRequest,
+        DomainError, DynMoney, RepoError, Transaction, TransactionId, TransactionRepository,
+        TransferRequest, WithdrawRequest,
     };
 
     use crate::PaymentService;
@@ -54,8 +54,8 @@ pub(crate) mod tests {
             let account = accounts
                 .get_mut(&req.account_id)
                 .ok_or(RepoError::NotFound)?;
-            let money = Money::new(req.amount, req.currency).map_err(RepoError::Domain)?;
-            account.credit(money).map_err(RepoError::Domain)?;
+            let money = DynMoney::new(req.amount, req.currency).map_err(RepoError::Domain)?;
+            account.deposit(money).map_err(RepoError::Domain)?;
             let tx =
                 Transaction::deposit(req.account_id, money, req.idempotency_key, req.reference);
             self.transactions.lock().unwrap().push(tx.clone());
@@ -67,8 +67,8 @@ pub(crate) mod tests {
             let account = accounts
                 .get_mut(&req.account_id)
                 .ok_or(RepoError::NotFound)?;
-            let money = Money::new(req.amount, req.currency).map_err(RepoError::Domain)?;
-            account.debit(money).map_err(RepoError::Domain)?;
+            let money = DynMoney::new(req.amount, req.currency).map_err(RepoError::Domain)?;
+            account.withdraw(money).map_err(RepoError::Domain)?;
             let tx =
                 Transaction::withdrawal(req.account_id, money, req.idempotency_key, req.reference);
             self.transactions.lock().unwrap().push(tx.clone());
@@ -88,13 +88,13 @@ pub(crate) mod tests {
                 return Err(RepoError::Domain(DomainError::CrossCurrencyTransfer));
             }
 
-            let money = Money::new(req.amount, req.currency).map_err(RepoError::Domain)?;
+            let money = DynMoney::new(req.amount, req.currency).map_err(RepoError::Domain)?;
 
             let from = accounts.get_mut(&req.from_account_id).unwrap();
-            from.debit(money).map_err(RepoError::Domain)?;
+            from.withdraw(money).map_err(RepoError::Domain)?;
 
             let to = accounts.get_mut(&req.to_account_id).unwrap();
-            to.credit(money).map_err(RepoError::Domain)?;
+            to.deposit(money).map_err(RepoError::Domain)?;
 
             let tx = Transaction::transfer(
                 req.from_account_id,
@@ -210,7 +210,7 @@ pub(crate) mod tests {
 
         let req = CreateAccountRequest {
             name: "Test Account".to_string(),
-            currency: Currency::USD,
+            currency: CurrencyCode::USD,
         };
 
         let account = service.create_account(req).await.unwrap();
@@ -225,7 +225,7 @@ pub(crate) mod tests {
 
         let req = CreateAccountRequest {
             name: "   ".to_string(),
-            currency: Currency::USD,
+            currency: CurrencyCode::USD,
         };
 
         let result = service.create_account(req).await;
@@ -240,7 +240,7 @@ pub(crate) mod tests {
         let account = service
             .create_account(CreateAccountRequest {
                 name: "Test".to_string(),
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
             })
             .await
             .unwrap();
@@ -249,7 +249,7 @@ pub(crate) mod tests {
             .deposit(DepositRequest {
                 account_id: account.id,
                 amount: 1000,
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
                 idempotency_key: None,
                 reference: None,
             })
@@ -266,7 +266,7 @@ pub(crate) mod tests {
         let account = service
             .create_account(CreateAccountRequest {
                 name: "Test".to_string(),
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
             })
             .await
             .unwrap();
@@ -275,7 +275,7 @@ pub(crate) mod tests {
             .deposit(DepositRequest {
                 account_id: account.id,
                 amount: 0,
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
                 idempotency_key: None,
                 reference: None,
             })
@@ -291,7 +291,7 @@ pub(crate) mod tests {
         let account = service
             .create_account(CreateAccountRequest {
                 name: "Test".to_string(),
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
             })
             .await
             .unwrap();
@@ -300,7 +300,7 @@ pub(crate) mod tests {
             .deposit(DepositRequest {
                 account_id: account.id,
                 amount: -100,
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
                 idempotency_key: None,
                 reference: None,
             })
@@ -316,7 +316,7 @@ pub(crate) mod tests {
         let account = service
             .create_account(CreateAccountRequest {
                 name: "Test".to_string(),
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
             })
             .await
             .unwrap();
@@ -325,7 +325,7 @@ pub(crate) mod tests {
             .deposit(DepositRequest {
                 account_id: account.id,
                 amount: 1000,
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
                 idempotency_key: None,
                 reference: None,
             })
@@ -337,7 +337,7 @@ pub(crate) mod tests {
                 from_account_id: account.id,
                 to_account_id: account.id,
                 amount: 100,
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
                 idempotency_key: None,
                 reference: None,
             })
@@ -362,7 +362,7 @@ pub(crate) mod tests {
         let account = service
             .create_account(CreateAccountRequest {
                 name: "Test".to_string(),
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
             })
             .await
             .unwrap();
@@ -371,7 +371,7 @@ pub(crate) mod tests {
             .deposit(DepositRequest {
                 account_id: account.id,
                 amount: 1000,
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
                 idempotency_key: None,
                 reference: None,
             })

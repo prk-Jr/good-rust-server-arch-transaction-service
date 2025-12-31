@@ -3,9 +3,10 @@
 //! A typed Rust client for the Payments API.
 
 use payments_types::{
-    Account, AccountId, CreateAccountRequest, Currency, DepositRequest, Transaction,
+    Account, AccountId, CreateAccountRequest, CurrencyCode, DepositRequest, Transaction,
     TransferRequest, WithdrawRequest,
 };
+
 use reqwest::Client;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -119,7 +120,7 @@ impl PaymentsClient {
     pub async fn create_account(
         &self,
         name: &str,
-        currency: Currency,
+        currency: CurrencyCode,
     ) -> Result<Account, ClientError> {
         let req = CreateAccountRequest {
             name: name.to_string(),
@@ -143,7 +144,7 @@ impl PaymentsClient {
         &self,
         account_id: AccountId,
         amount: i64,
-        currency: Currency,
+        currency: CurrencyCode,
         idempotency_key: Option<String>,
         reference: Option<String>,
     ) -> Result<Transaction, ClientError> {
@@ -162,7 +163,7 @@ impl PaymentsClient {
         &self,
         account_id: AccountId,
         amount: i64,
-        currency: Currency,
+        currency: CurrencyCode,
         idempotency_key: Option<String>,
         reference: Option<String>,
     ) -> Result<Transaction, ClientError> {
@@ -182,7 +183,7 @@ impl PaymentsClient {
         from_account_id: AccountId,
         to_account_id: AccountId,
         amount: i64,
-        currency: Currency,
+        currency: CurrencyCode,
         idempotency_key: Option<String>,
         reference: Option<String>,
     ) -> Result<Transaction, ClientError> {

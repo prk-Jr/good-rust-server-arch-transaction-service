@@ -1,0 +1,21 @@
+[package]
+name = "exchange-rates"
+version.workspace = true
+edition.workspace = true
+description = "Exchange rate library with hardcoded rates for development and testing"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+# Serialization
+serde.workspace = true
+
+# Utilities
+thiserror.workspace = true
+
+# OpenAPI
+utoipa = { version = "5.4.0" }
+
+[dev-dependencies]
+

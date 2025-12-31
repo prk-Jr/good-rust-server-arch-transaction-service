@@ -2,7 +2,8 @@
 
 #![allow(dead_code)] // Path functions are only used by utoipa for documentation generation
 
-use payments_types::domain::{AccountId, Currency, TransactionId, WebhookEndpointId};
+use payments_types::domain::{AccountId, CurrencyCode, TransactionId, WebhookEndpointId};
+
 use payments_types::dto::{
     AccountResponse, CreateAccountRequest, DepositRequest, RegisterWebhookRequest,
     TransactionResponse, TransactionStatus, TransferRequest, WebhookResponse, WithdrawRequest,
@@ -13,7 +14,8 @@ use utoipa::{
 };
 
 use crate::inbound::handlers::{
-    ApiKeyInfo, BootstrapRequest, BootstrapResponse, CreateApiKeyRequest,
+    ApiKeyInfo, BootstrapRequest, BootstrapResponse, ConvertRequest, ConvertResponse,
+    CreateApiKeyRequest, ExchangeRateResponse,
 };
 
 // Dummy functions to generate path documentation
@@ -206,6 +208,34 @@ async fn register_webhook() {}
 )]
 async fn list_webhooks() {}
 
+/// Get exchange rates for a base currency
+#[utoipa::path(
+    get,
+    path = "/api/rates/{base}",
+    tag = "rates",
+    params(
+        ("base" = String, Path, description = "Base currency (USD, EUR, GBP, INR)")
+    ),
+    responses(
+        (status = 200, description = "Exchange rates", body = ExchangeRateResponse),
+        (status = 400, description = "Unsupported currency")
+    )
+)]
+async fn get_rates() {}
+
+/// Convert an amount between currencies
+#[utoipa::path(
+    post,
+    path = "/api/convert",
+    tag = "rates",
+    request_body = ConvertRequest,
+    responses(
+        (status = 200, description = "Conversion result", body = ConvertResponse),
+        (status = 400, description = "Invalid request or unsupported currency")
+    )
+)]
+async fn convert() {}
+
 /// OpenAPI documentation for the Payments API.
 #[derive(OpenApi)]
 #[openapi(
@@ -229,6 +259,8 @@ async fn list_webhooks() {}
         transfer,
         register_webhook,
         list_webhooks,
+        get_rates,
+        convert,
     ),
     components(
         schemas(
@@ -241,14 +273,18 @@ async fn list_webhooks() {}
             TransactionStatus,
             RegisterWebhookRequest,
             WebhookResponse,
-            Currency,
+            CurrencyCode,
             AccountId,
+
             TransactionId,
             WebhookEndpointId,
             BootstrapRequest,
             BootstrapResponse,
             CreateApiKeyRequest,
             ApiKeyInfo,
+            ExchangeRateResponse,
+            ConvertRequest,
+            ConvertResponse,
         )
     ),
 
@@ -259,6 +295,7 @@ async fn list_webhooks() {}
         (name = "accounts", description = "Account management operations"),
         (name = "transactions", description = "Deposit, withdraw, and transfer operations"),
         (name = "webhooks", description = "Webhook endpoint management"),
+        (name = "rates", description = "Exchange rate operations"),
     )
 )]
 pub struct ApiDoc;

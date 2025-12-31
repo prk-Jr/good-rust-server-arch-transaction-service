@@ -6,7 +6,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 use payments_client::PaymentsClient;
-use payments_types::{AccountId, Currency};
+use payments_types::{AccountId, CurrencyCode};
 
 #[derive(Parser)]
 #[command(name = "payments")]
@@ -163,12 +163,12 @@ enum KeyCommands {
     },
 }
 
-fn parse_currency(s: &str) -> Result<Currency> {
+fn parse_currency(s: &str) -> Result<CurrencyCode> {
     match s.to_uppercase().as_str() {
-        "USD" => Ok(Currency::USD),
-        "EUR" => Ok(Currency::EUR),
-        "GBP" => Ok(Currency::GBP),
-        "INR" => Ok(Currency::INR),
+        "USD" => Ok(CurrencyCode::USD),
+        "EUR" => Ok(CurrencyCode::EUR),
+        "GBP" => Ok(CurrencyCode::GBP),
+        "INR" => Ok(CurrencyCode::INR),
         _ => anyhow::bail!("Unknown currency: {}. Supported: USD, EUR, GBP, INR", s),
     }
 }

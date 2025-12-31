@@ -5,7 +5,8 @@
 use payments_client::PaymentsClient;
 use payments_hex::{PaymentService, inbound::HttpServer};
 use payments_repo::build_repo;
-use payments_types::Currency;
+use payments_types::CurrencyCode;
+
 use std::net::SocketAddr;
 use tempfile::tempdir;
 use tokio::net::TcpListener;
@@ -63,7 +64,7 @@ async fn main() -> anyhow::Result<()> {
     println!("✅ Server health: {health}");
 
     //assert response is error unauthorized
-    let response = client.create_account("Alice Corp", Currency::USD).await;
+    let response = client.create_account("Alice Corp", CurrencyCode::USD).await;
     assert!(response.is_err());
     println!("✅ Unauthorized without key: {}", response.unwrap_err());
 
@@ -74,15 +75,17 @@ async fn main() -> anyhow::Result<()> {
     let client = client.with_api_key(key);
 
     // Create accounts
-    let alice = client.create_account("Alice Corp", Currency::USD).await?;
+    let alice = client
+        .create_account("Alice Corp", CurrencyCode::USD)
+        .await?;
     println!("✅ Created account: {} (id={})", alice.name, alice.id);
 
-    let bob = client.create_account("Bob Inc", Currency::USD).await?;
+    let bob = client.create_account("Bob Inc", CurrencyCode::USD).await?;
     println!("✅ Created account: {} (id={})", bob.name, bob.id);
 
     // Deposit to Alice
     let deposit = client
-        .deposit(alice.id, 10000, Currency::USD, None, None)
+        .deposit(alice.id, 10000, CurrencyCode::USD, None, None)
         .await?;
     println!("✅ Deposited $100.00 to Alice (tx={})", deposit.id);
 
@@ -94,7 +97,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Transfer from Alice to Bob
     let transfer = client
-        .transfer(alice.id, bob.id, 3500, Currency::USD, None, None)
+        .transfer(alice.id, bob.id, 3500, CurrencyCode::USD, None, None)
         .await?;
     println!(
         "✅ Transferred $35.00 from Alice to Bob (tx={})",
@@ -114,7 +117,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Withdraw from Bob
     let withdraw = client
-        .withdraw(bob.id, 1500, Currency::USD, None, None)
+        .withdraw(bob.id, 1500, CurrencyCode::USD, None, None)
         .await?;
     println!("✅ Withdrew $15.00 from Bob (tx={})", withdraw.id);
 

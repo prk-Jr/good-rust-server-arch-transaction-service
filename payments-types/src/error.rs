@@ -1,6 +1,6 @@
 //! Error types for the payment service.
 
-use crate::domain::{AccountId, Currency};
+use crate::domain::{AccountId, CurrencyCode};
 
 /// Domain-level errors (business logic violations).
 #[derive(Debug, thiserror::Error)]
@@ -9,7 +9,10 @@ pub enum DomainError {
     NegativeAmount,
 
     #[error("Currency mismatch: expected {expected}, got {got}")]
-    CurrencyMismatch { expected: Currency, got: Currency },
+    CurrencyMismatch {
+        expected: CurrencyCode,
+        got: CurrencyCode,
+    },
 
     #[error("Insufficient funds: available {available}, requested {requested}")]
     InsufficientFunds { available: i64, requested: i64 },
@@ -22,6 +25,9 @@ pub enum DomainError {
 
     #[error("Validation error: {0}")]
     ValidationError(String),
+
+    #[error("Idempotency key conflict: key {0} was already used with different parameters")]
+    IdempotencyKeyConflict(String),
 }
 
 /// Repository-level errors (data access failures).

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use super::money::{Currency, Money};
+use super::money::{CurrencyCode, DynMoney};
 use crate::error::DomainError;
 
 /// Unique identifier for an Account.
@@ -63,7 +63,7 @@ pub struct Account {
     /// Human-readable account name
     pub name: String,
     /// Current balance (includes currency information)
-    pub balance: Money,
+    pub balance: DynMoney,
     /// When the account was created
     pub created_at: DateTime<Utc>,
 }
@@ -73,7 +73,7 @@ impl Account {
     ///
     /// # Validation
     /// - Name cannot be empty
-    pub fn new(name: String, currency: Currency) -> Result<Self, DomainError> {
+    pub fn new(name: String, currency: CurrencyCode) -> Result<Self, DomainError> {
         if name.trim().is_empty() {
             return Err(DomainError::ValidationError(
                 "Account name cannot be empty".into(),
@@ -83,7 +83,7 @@ impl Account {
         Ok(Self {
             id: AccountId::new(),
             name,
-            balance: Money::zero(currency),
+            balance: DynMoney::zero(currency),
             created_at: Utc::now(),
         })
     }
@@ -92,7 +92,7 @@ impl Account {
     pub fn from_parts(
         id: AccountId,
         name: String,
-        balance: Money,
+        balance: DynMoney,
         created_at: DateTime<Utc>,
     ) -> Self {
         Self {
@@ -103,26 +103,29 @@ impl Account {
         }
     }
 
-    /// Returns the currency of this account.
-    pub fn currency(&self) -> Currency {
+    /// Returns the account's currency.
+    pub fn currency(&self) -> CurrencyCode {
         self.balance.currency()
     }
 
-    /// Credits (adds) money to the account.
-    pub fn credit(&mut self, amount: Money) -> Result<(), DomainError> {
+    /// Deposits money into the account.
+    ///
+    /// # Validation
+    /// - Currency must match
+    /// - Amount must be positive
+    pub fn deposit(&mut self, amount: DynMoney) -> Result<(), DomainError> {
         self.balance = self.balance.checked_add(amount)?;
         Ok(())
     }
 
-    /// Debits (subtracts) money from the account.
-    pub fn debit(&mut self, amount: Money) -> Result<(), DomainError> {
+    /// Withdraws money from the account.
+    ///
+    /// # Validation
+    /// - Currency must match
+    /// - Sufficient funds required
+    pub fn withdraw(&mut self, amount: DynMoney) -> Result<(), DomainError> {
         self.balance = self.balance.checked_sub(amount)?;
         Ok(())
-    }
-
-    /// Checks if the account has sufficient funds for a debit.
-    pub fn has_sufficient_funds(&self, amount: &Money) -> bool {
-        self.balance.currency() == amount.currency() && self.balance.gte(amount)
     }
 }
 
@@ -132,45 +135,52 @@ mod tests {
 
     #[test]
     fn test_account_creation() {
-        let account = Account::new("Test Account".to_string(), Currency::USD).unwrap();
-        assert_eq!(account.name, "Test Account");
+        let account = Account::new("Test Account".into(), CurrencyCode::USD).unwrap();
         assert_eq!(account.balance.amount(), 0);
-        assert_eq!(account.currency(), Currency::USD);
+        assert_eq!(account.currency(), CurrencyCode::USD);
     }
 
     #[test]
     fn test_empty_name_fails() {
-        let result = Account::new("".to_string(), Currency::USD);
+        let result = Account::new("".into(), CurrencyCode::USD);
         assert!(matches!(result, Err(DomainError::ValidationError(_))));
     }
 
     #[test]
-    fn test_account_credit() {
-        let mut account = Account::new("Test".to_string(), Currency::USD).unwrap();
-        let amount = Money::new(1000, Currency::USD).unwrap();
-        account.credit(amount).unwrap();
-        assert_eq!(account.balance.amount(), 1000);
+    fn test_deposit() {
+        let mut account = Account::new("Test".into(), CurrencyCode::USD).unwrap();
+        let deposit = DynMoney::new(100, CurrencyCode::USD).unwrap();
+        account.deposit(deposit).unwrap();
+        assert_eq!(account.balance.amount(), 100);
     }
 
     #[test]
-    fn test_account_debit() {
-        let mut account = Account::new("Test".to_string(), Currency::USD).unwrap();
-        account
-            .credit(Money::new(1000, Currency::USD).unwrap())
-            .unwrap();
-        account
-            .debit(Money::new(300, Currency::USD).unwrap())
-            .unwrap();
-        assert_eq!(account.balance.amount(), 700);
+    fn test_withdraw() {
+        let mut account = Account::new("Test".into(), CurrencyCode::USD).unwrap();
+        let deposit = DynMoney::new(100, CurrencyCode::USD).unwrap();
+        account.deposit(deposit).unwrap();
+
+        let withdraw = DynMoney::new(30, CurrencyCode::USD).unwrap();
+        account.withdraw(withdraw).unwrap();
+        assert_eq!(account.balance.amount(), 70);
     }
 
     #[test]
     fn test_insufficient_funds() {
-        let mut account = Account::new("Test".to_string(), Currency::USD).unwrap();
-        account
-            .credit(Money::new(100, Currency::USD).unwrap())
-            .unwrap();
-        let result = account.debit(Money::new(200, Currency::USD).unwrap());
+        let mut account = Account::new("Test".into(), CurrencyCode::USD).unwrap();
+        let deposit = DynMoney::new(50, CurrencyCode::USD).unwrap();
+        account.deposit(deposit).unwrap();
+
+        let withdraw = DynMoney::new(100, CurrencyCode::USD).unwrap();
+        let result = account.withdraw(withdraw);
         assert!(matches!(result, Err(DomainError::InsufficientFunds { .. })));
+    }
+
+    #[test]
+    fn test_currency_mismatch() {
+        let mut account = Account::new("Test".into(), CurrencyCode::USD).unwrap();
+        let deposit = DynMoney::new(100, CurrencyCode::EUR).unwrap();
+        let result = account.deposit(deposit);
+        assert!(matches!(result, Err(DomainError::CurrencyMismatch { .. })));
     }
 }

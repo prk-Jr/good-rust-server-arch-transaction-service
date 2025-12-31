@@ -8,7 +8,7 @@ use std::str::FromStr;
 use uuid::Uuid;
 
 use payments_types::{
-    Account, AccountId, CreateAccountRequest, DepositRequest, DomainError, Money, RepoError,
+    Account, AccountId, CreateAccountRequest, DepositRequest, DomainError, DynMoney, RepoError,
     Transaction, TransactionRepository, TransferRequest, WebhookEvent, WebhookStatus,
     WithdrawRequest,
 };
@@ -120,7 +120,7 @@ impl TransactionRepository for SqliteRepo {
         Ok(Account::from_parts(
             AccountId::from_uuid(id),
             req.name,
-            Money::zero(req.currency),
+            DynMoney::zero(req.currency),
             now,
         ))
     }
@@ -154,11 +154,21 @@ impl TransactionRepository for SqliteRepo {
         // Check idempotency
         if let Some(key) = &req.idempotency_key {
             if let Some(tx) = self.find_by_idempotency_key(key).await? {
+                if tx.amount.amount() != req.amount
+                    || tx.amount.currency() != req.currency
+                    || tx.source_account_id.as_ref().map(|a| a.as_uuid()).is_some()
+                    || tx.destination_account_id.as_ref().map(|a| a.as_uuid())
+                        != Some(req.account_id.as_uuid())
+                {
+                    return Err(RepoError::Domain(DomainError::IdempotencyKeyConflict(
+                        key.clone(),
+                    )));
+                }
                 return Ok(tx);
             }
         }
 
-        let money = Money::new(req.amount, req.currency).map_err(RepoError::Domain)?;
+        let money = DynMoney::new(req.amount, req.currency).map_err(RepoError::Domain)?;
         let account_id_str = req.account_id.to_string();
 
         let mut db_tx = self
@@ -212,11 +222,25 @@ impl TransactionRepository for SqliteRepo {
     async fn withdraw(&self, req: WithdrawRequest) -> Result<Transaction, RepoError> {
         if let Some(key) = &req.idempotency_key {
             if let Some(tx) = self.find_by_idempotency_key(key).await? {
+                if tx.amount.amount() != req.amount
+                    || tx.amount.currency() != req.currency
+                    || tx.source_account_id.as_ref().map(|a| a.as_uuid())
+                        != Some(req.account_id.as_uuid())
+                    || tx
+                        .destination_account_id
+                        .as_ref()
+                        .map(|a| a.as_uuid())
+                        .is_some()
+                {
+                    return Err(RepoError::Domain(DomainError::IdempotencyKeyConflict(
+                        key.clone(),
+                    )));
+                }
                 return Ok(tx);
             }
         }
 
-        let money = Money::new(req.amount, req.currency).map_err(RepoError::Domain)?;
+        let money = DynMoney::new(req.amount, req.currency).map_err(RepoError::Domain)?;
         let account_id_str = req.account_id.to_string();
 
         let mut db_tx = self
@@ -281,11 +305,22 @@ impl TransactionRepository for SqliteRepo {
     async fn transfer(&self, req: TransferRequest) -> Result<Transaction, RepoError> {
         if let Some(key) = &req.idempotency_key {
             if let Some(tx) = self.find_by_idempotency_key(key).await? {
+                if tx.amount.amount() != req.amount
+                    || tx.amount.currency() != req.currency
+                    || tx.source_account_id.as_ref().map(|a| a.as_uuid())
+                        != Some(req.from_account_id.as_uuid())
+                    || tx.destination_account_id.as_ref().map(|a| a.as_uuid())
+                        != Some(req.to_account_id.as_uuid())
+                {
+                    return Err(RepoError::Domain(DomainError::IdempotencyKeyConflict(
+                        key.clone(),
+                    )));
+                }
                 return Ok(tx);
             }
         }
 
-        let money = Money::new(req.amount, req.currency).map_err(RepoError::Domain)?;
+        let money = DynMoney::new(req.amount, req.currency).map_err(RepoError::Domain)?;
         let from_id_str = req.from_account_id.to_string();
         let to_id_str = req.to_account_id.to_string();
 

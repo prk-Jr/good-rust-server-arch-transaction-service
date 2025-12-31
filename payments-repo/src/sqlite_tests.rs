@@ -3,9 +3,10 @@
 #[cfg(test)]
 mod tests {
     use payments_types::{
-        AccountId, CreateAccountRequest, Currency, DepositRequest, DomainError, RepoError,
+        AccountId, CreateAccountRequest, CurrencyCode, DepositRequest, DomainError, RepoError,
         TransactionRepository, TransferRequest, WebhookEndpointId, WithdrawRequest,
     };
+
     use uuid::Uuid;
 
     use crate::SqliteRepo;
@@ -20,14 +21,14 @@ mod tests {
 
         let req = CreateAccountRequest {
             name: "Test Account".to_string(),
-            currency: Currency::USD,
+            currency: CurrencyCode::USD,
         };
 
         let account = repo.create_account(req).await.unwrap();
 
         assert_eq!(account.name, "Test Account");
         assert_eq!(account.balance.amount(), 0);
-        assert_eq!(account.balance.currency(), Currency::USD);
+        assert_eq!(account.balance.currency(), CurrencyCode::USD);
     }
 
     #[tokio::test]
@@ -36,7 +37,7 @@ mod tests {
 
         let req = CreateAccountRequest {
             name: "Test".to_string(),
-            currency: Currency::USD,
+            currency: CurrencyCode::USD,
         };
         let created = repo.create_account(req).await.unwrap();
 
@@ -61,14 +62,14 @@ mod tests {
 
         repo.create_account(CreateAccountRequest {
             name: "Alice".to_string(),
-            currency: Currency::USD,
+            currency: CurrencyCode::USD,
         })
         .await
         .unwrap();
 
         repo.create_account(CreateAccountRequest {
             name: "Bob".to_string(),
-            currency: Currency::EUR,
+            currency: CurrencyCode::EUR,
         })
         .await
         .unwrap();
@@ -85,7 +86,7 @@ mod tests {
         let account = repo
             .create_account(CreateAccountRequest {
                 name: "Test".to_string(),
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
             })
             .await
             .unwrap();
@@ -94,7 +95,7 @@ mod tests {
             .deposit(DepositRequest {
                 account_id: account.id,
                 amount: 1000,
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
                 idempotency_key: None,
                 reference: Some("Initial deposit".to_string()),
             })
@@ -115,7 +116,7 @@ mod tests {
             .deposit(DepositRequest {
                 account_id: AccountId::new(),
                 amount: 1000,
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
                 idempotency_key: None,
                 reference: None,
             })
@@ -131,7 +132,7 @@ mod tests {
         let account = repo
             .create_account(CreateAccountRequest {
                 name: "Test".to_string(),
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
             })
             .await
             .unwrap();
@@ -139,7 +140,7 @@ mod tests {
         repo.deposit(DepositRequest {
             account_id: account.id,
             amount: 1000,
-            currency: Currency::USD,
+            currency: CurrencyCode::USD,
             idempotency_key: None,
             reference: None,
         })
@@ -150,7 +151,7 @@ mod tests {
             .withdraw(WithdrawRequest {
                 account_id: account.id,
                 amount: 300,
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
                 idempotency_key: None,
                 reference: None,
             })
@@ -170,7 +171,7 @@ mod tests {
         let account = repo
             .create_account(CreateAccountRequest {
                 name: "Test".to_string(),
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
             })
             .await
             .unwrap();
@@ -178,7 +179,7 @@ mod tests {
         repo.deposit(DepositRequest {
             account_id: account.id,
             amount: 100,
-            currency: Currency::USD,
+            currency: CurrencyCode::USD,
             idempotency_key: None,
             reference: None,
         })
@@ -189,7 +190,7 @@ mod tests {
             .withdraw(WithdrawRequest {
                 account_id: account.id,
                 amount: 200,
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
                 idempotency_key: None,
                 reference: None,
             })
@@ -208,7 +209,7 @@ mod tests {
         let alice = repo
             .create_account(CreateAccountRequest {
                 name: "Alice".to_string(),
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
             })
             .await
             .unwrap();
@@ -216,7 +217,7 @@ mod tests {
         let bob = repo
             .create_account(CreateAccountRequest {
                 name: "Bob".to_string(),
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
             })
             .await
             .unwrap();
@@ -224,7 +225,7 @@ mod tests {
         repo.deposit(DepositRequest {
             account_id: alice.id,
             amount: 1000,
-            currency: Currency::USD,
+            currency: CurrencyCode::USD,
             idempotency_key: None,
             reference: None,
         })
@@ -236,7 +237,7 @@ mod tests {
                 from_account_id: alice.id,
                 to_account_id: bob.id,
                 amount: 400,
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
                 idempotency_key: None,
                 reference: None,
             })
@@ -259,7 +260,7 @@ mod tests {
         let alice = repo
             .create_account(CreateAccountRequest {
                 name: "Alice".to_string(),
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
             })
             .await
             .unwrap();
@@ -267,7 +268,7 @@ mod tests {
         let bob = repo
             .create_account(CreateAccountRequest {
                 name: "Bob".to_string(),
-                currency: Currency::EUR,
+                currency: CurrencyCode::EUR,
             })
             .await
             .unwrap();
@@ -275,7 +276,7 @@ mod tests {
         repo.deposit(DepositRequest {
             account_id: alice.id,
             amount: 1000,
-            currency: Currency::USD,
+            currency: CurrencyCode::USD,
             idempotency_key: None,
             reference: None,
         })
@@ -287,7 +288,7 @@ mod tests {
                 from_account_id: alice.id,
                 to_account_id: bob.id,
                 amount: 400,
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
                 idempotency_key: None,
                 reference: None,
             })
@@ -306,7 +307,7 @@ mod tests {
         let account = repo
             .create_account(CreateAccountRequest {
                 name: "Test".to_string(),
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
             })
             .await
             .unwrap();
@@ -318,7 +319,7 @@ mod tests {
             .deposit(DepositRequest {
                 account_id: account.id,
                 amount: 1000,
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
                 idempotency_key: Some(key.clone()),
                 reference: None,
             })
@@ -330,7 +331,7 @@ mod tests {
             .deposit(DepositRequest {
                 account_id: account.id,
                 amount: 1000,
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
                 idempotency_key: Some(key.clone()),
                 reference: None,
             })
@@ -348,13 +349,70 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_idempotency_deposit_mismatch() {
+        let repo = setup_repo().await;
+
+        let account = repo
+            .create_account(CreateAccountRequest {
+                name: "Test Mismatch".to_string(),
+                currency: CurrencyCode::USD,
+            })
+            .await
+            .unwrap();
+
+        let key = "mismatch-key".to_string();
+
+        // 1. Initial Deposit $10
+        repo.deposit(DepositRequest {
+            account_id: account.id,
+            amount: 1000,
+            currency: CurrencyCode::USD,
+            idempotency_key: Some(key.clone()),
+            reference: Some("Initial".to_string()),
+        })
+        .await
+        .unwrap();
+
+        // 2. Retry with SAME key but DIFFERENT amount ($20)
+        // This SHOULD fail with a Conflict error, but currently returns the old $10 transaction.
+        let result = repo
+            .deposit(DepositRequest {
+                account_id: account.id,
+                amount: 2000,
+                currency: CurrencyCode::USD,
+                idempotency_key: Some(key.clone()),
+                reference: Some("Changed Amount".to_string()),
+            })
+            .await;
+
+        // ASSERT FAILURE: Verify that we get a DomainError::IdempotencyKeyConflict
+        // Note: This test will FAIL until we implement the fix.
+        match result {
+            Err(RepoError::Domain(DomainError::IdempotencyKeyConflict(_))) => {
+                // improved behavior
+            }
+            Ok(tx) => {
+                // current buggy behavior: it returns the old transaction ($10)
+                // We want to ASSERT that this DOES NOT happen once fixed.
+                // For now, let's assert that it DOES happen to prove the bug exists?
+                // Or better, let's write the test assuming the desired behavior and let it fail.
+                panic!(
+                    "Should have failed with IdempotencyKeyConflict, but got Ok(tx) with amount: {}",
+                    tx.amount.amount()
+                );
+            }
+            Err(e) => panic!("Expected IdempotencyKeyConflict, got {:?}", e),
+        }
+    }
+
+    #[tokio::test]
     async fn test_list_transactions_for_account() {
         let repo = setup_repo().await;
 
         let account = repo
             .create_account(CreateAccountRequest {
                 name: "Test".to_string(),
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
             })
             .await
             .unwrap();
@@ -362,7 +420,7 @@ mod tests {
         repo.deposit(DepositRequest {
             account_id: account.id,
             amount: 1000,
-            currency: Currency::USD,
+            currency: CurrencyCode::USD,
             idempotency_key: None,
             reference: None,
         })
@@ -372,7 +430,7 @@ mod tests {
         repo.withdraw(WithdrawRequest {
             account_id: account.id,
             amount: 200,
-            currency: Currency::USD,
+            currency: CurrencyCode::USD,
             idempotency_key: None,
             reference: None,
         })
@@ -394,7 +452,7 @@ mod tests {
         let account = repo
             .create_account(CreateAccountRequest {
                 name: "Webhook Test".to_string(),
-                currency: Currency::USD,
+                currency: CurrencyCode::USD,
             })
             .await
             .unwrap();

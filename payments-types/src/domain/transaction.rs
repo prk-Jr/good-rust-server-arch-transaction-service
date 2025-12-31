@@ -6,7 +6,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::account::AccountId;
-use super::money::Money;
+use super::money::DynMoney;
 
 /// Unique identifier for a Transaction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
@@ -88,7 +88,7 @@ pub struct Transaction {
     /// Type of transaction
     pub transaction_type: TransactionType,
     /// Amount transferred
-    pub amount: Money,
+    pub amount: DynMoney,
     /// Source account (None for deposits from external)
     pub source_account_id: Option<AccountId>,
     /// Destination account (None for withdrawals to external)
@@ -105,7 +105,7 @@ impl Transaction {
     /// Creates a new deposit transaction.
     pub fn deposit(
         destination: AccountId,
-        amount: Money,
+        amount: DynMoney,
         idempotency_key: Option<String>,
         reference: Option<String>,
     ) -> Self {
@@ -124,7 +124,7 @@ impl Transaction {
     /// Creates a new withdrawal transaction.
     pub fn withdrawal(
         source: AccountId,
-        amount: Money,
+        amount: DynMoney,
         idempotency_key: Option<String>,
         reference: Option<String>,
     ) -> Self {
@@ -144,7 +144,7 @@ impl Transaction {
     pub fn transfer(
         source: AccountId,
         destination: AccountId,
-        amount: Money,
+        amount: DynMoney,
         idempotency_key: Option<String>,
         reference: Option<String>,
     ) -> Self {
@@ -165,7 +165,7 @@ impl Transaction {
     pub fn from_parts(
         id: TransactionId,
         transaction_type: TransactionType,
-        amount: Money,
+        amount: DynMoney,
         source_account_id: Option<AccountId>,
         destination_account_id: Option<AccountId>,
         idempotency_key: Option<String>,
@@ -188,12 +188,13 @@ impl Transaction {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::Currency;
+    use crate::domain::CurrencyCode;
 
     #[test]
     fn test_deposit_creation() {
         let account = AccountId::new();
-        let amount = Money::new(1000, Currency::USD).unwrap();
+        let amount = DynMoney::new(1000, CurrencyCode::USD).unwrap();
+
         let tx = Transaction::deposit(account, amount, None, None);
 
         assert_eq!(tx.transaction_type, TransactionType::Deposit);
@@ -205,7 +206,7 @@ mod tests {
     fn test_transfer_creation() {
         let alice = AccountId::new();
         let bob = AccountId::new();
-        let amount = Money::new(500, Currency::USD).unwrap();
+        let amount = DynMoney::new(500, CurrencyCode::USD).unwrap();
         let tx = Transaction::transfer(alice, bob, amount, Some("key123".to_string()), None);
 
         assert_eq!(tx.transaction_type, TransactionType::Transfer);

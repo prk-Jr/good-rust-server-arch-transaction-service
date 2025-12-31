@@ -4,13 +4,13 @@ use std::sync::Arc;
 
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Extension, Path, State},
     http::StatusCode,
     response::{IntoResponse, Response},
 };
 
 use payments_types::{
-    AccountId, AppError, CreateAccountRequest, DepositRequest, TransactionRepository,
+    AccountId, ApiKey, AppError, CreateAccountRequest, DepositRequest, TransactionRepository,
     TransferRequest, WithdrawRequest,
 };
 
@@ -57,6 +57,16 @@ impl IntoResponse for ApiError {
     }
 }
 
+/// Helper to ensure the authenticated API key has access to the target account.
+fn ensure_access(api_key: &ApiKey, target: AccountId) -> Result<(), AppError> {
+    match api_key.account_id {
+        Some(allowed_id) if allowed_id != target => Err(AppError::BadRequest(
+            "Access denied: API key not authorized for this account".into(),
+        )),
+        _ => Ok(()), // Admin (None) or Matching ID
+    }
+}
+
 /// Health check endpoint.
 pub async fn health() -> impl IntoResponse {
     Json(serde_json::json!({ "status": "healthy" }))
@@ -77,7 +87,14 @@ pub async fn create_account<R: TransactionRepository>(
 #[tracing::instrument(skip(state))]
 pub async fn list_accounts<R: TransactionRepository>(
     State(state): State<Arc<AppState<R>>>,
+    Extension(api_key): Extension<ApiKey>,
 ) -> Result<impl IntoResponse, ApiError> {
+    // If scoped key, filter to only that account
+    if let Some(account_id) = api_key.account_id {
+        let account = state.service.get_account(account_id).await?;
+        return Ok(Json(vec![account]));
+    }
+    // Otherwise return all
     let accounts = state.service.list_accounts().await?;
     Ok(Json(accounts))
 }
@@ -86,11 +103,14 @@ pub async fn list_accounts<R: TransactionRepository>(
 #[tracing::instrument(skip(state), fields(account_id = %id))]
 pub async fn get_account<R: TransactionRepository>(
     State(state): State<Arc<AppState<R>>>,
+    Extension(api_key): Extension<ApiKey>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     let account_id: AccountId = id
         .parse()
         .map_err(|_| AppError::BadRequest("Invalid account ID".into()))?;
+
+    ensure_access(&api_key, account_id).map_err(ApiError)?;
 
     let account = state.service.get_account(account_id).await?;
     Ok(Json(account))
@@ -100,8 +120,10 @@ pub async fn get_account<R: TransactionRepository>(
 #[tracing::instrument(skip(state), fields(account_id = %req.account_id, amount = req.amount))]
 pub async fn deposit<R: TransactionRepository>(
     State(state): State<Arc<AppState<R>>>,
+    Extension(api_key): Extension<ApiKey>,
     Json(req): Json<DepositRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
+    ensure_access(&api_key, req.account_id).map_err(ApiError)?;
     let tx = state.service.deposit(req).await?;
     Ok(Json(tx))
 }
@@ -110,8 +132,10 @@ pub async fn deposit<R: TransactionRepository>(
 #[tracing::instrument(skip(state), fields(account_id = %req.account_id, amount = req.amount))]
 pub async fn withdraw<R: TransactionRepository>(
     State(state): State<Arc<AppState<R>>>,
+    Extension(api_key): Extension<ApiKey>,
     Json(req): Json<WithdrawRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
+    ensure_access(&api_key, req.account_id).map_err(ApiError)?;
     let tx = state.service.withdraw(req).await?;
     Ok(Json(tx))
 }
@@ -120,8 +144,10 @@ pub async fn withdraw<R: TransactionRepository>(
 #[tracing::instrument(skip(state), fields(from = %req.from_account_id, to = %req.to_account_id, amount = req.amount))]
 pub async fn transfer<R: TransactionRepository>(
     State(state): State<Arc<AppState<R>>>,
+    Extension(api_key): Extension<ApiKey>,
     Json(req): Json<TransferRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
+    ensure_access(&api_key, req.from_account_id).map_err(ApiError)?;
     let tx = state.service.transfer(req).await?;
     Ok(Json(tx))
 }
@@ -130,11 +156,14 @@ pub async fn transfer<R: TransactionRepository>(
 #[tracing::instrument(skip(state), fields(account_id = %id))]
 pub async fn list_transactions<R: TransactionRepository>(
     State(state): State<Arc<AppState<R>>>,
+    Extension(api_key): Extension<ApiKey>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     let account_id: AccountId = id
         .parse()
         .map_err(|_| AppError::BadRequest("Invalid account ID".into()))?;
+
+    ensure_access(&api_key, account_id).map_err(ApiError)?;
 
     let transactions = state.service.list_transactions(account_id).await?;
     Ok(Json(transactions))
@@ -358,4 +387,179 @@ pub async fn list_webhooks<R: TransactionRepository>(
         .collect();
 
     Ok(Json(response))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Exchange Rates
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Exchange rate response for API.
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct ExchangeRateResponse {
+    /// Base currency
+    #[schema(example = "USD")]
+    pub base: String,
+    /// Exchange rates for all supported currencies
+    pub rates: std::collections::HashMap<String, f64>,
+}
+
+/// Conversion request.
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+pub struct ConvertRequest {
+    /// Source currency
+    #[schema(example = "USD")]
+    pub from: String,
+    /// Target currency
+    #[schema(example = "EUR")]
+    pub to: String,
+    /// Amount in smallest units (cents, pence, etc.)
+    #[schema(example = 10000)]
+    pub amount: i64,
+}
+
+/// Conversion response.
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct ConvertResponse {
+    /// Source currency
+    pub from: String,
+    /// Target currency
+    pub to: String,
+    /// Original amount
+    pub amount: i64,
+    /// Converted amount
+    pub converted: i64,
+    /// Exchange rate used
+    pub rate: f64,
+}
+
+/// Get exchange rates for a base currency.
+#[tracing::instrument]
+pub async fn get_rates(Path(base): Path<String>) -> Result<impl IntoResponse, ApiError> {
+    use exchange_rates::{EUR, GBP, INR, USD, get_rate};
+
+    let base_upper = base.to_uppercase();
+
+    // Build rates map based on base currency
+    let rates_map: std::collections::HashMap<String, f64> = match base_upper.as_str() {
+        "USD" => [
+            ("USD".to_string(), 1.0),
+            ("EUR".to_string(), get_rate::<USD, EUR>()),
+            ("GBP".to_string(), get_rate::<USD, GBP>()),
+            ("INR".to_string(), get_rate::<USD, INR>()),
+        ]
+        .into_iter()
+        .collect(),
+        "EUR" => [
+            ("USD".to_string(), get_rate::<EUR, USD>()),
+            ("EUR".to_string(), 1.0),
+            ("GBP".to_string(), get_rate::<EUR, GBP>()),
+            ("INR".to_string(), get_rate::<EUR, INR>()),
+        ]
+        .into_iter()
+        .collect(),
+        "GBP" => [
+            ("USD".to_string(), get_rate::<GBP, USD>()),
+            ("EUR".to_string(), get_rate::<GBP, EUR>()),
+            ("GBP".to_string(), 1.0),
+            ("INR".to_string(), get_rate::<GBP, INR>()),
+        ]
+        .into_iter()
+        .collect(),
+        "INR" => [
+            ("USD".to_string(), get_rate::<INR, USD>()),
+            ("EUR".to_string(), get_rate::<INR, EUR>()),
+            ("GBP".to_string(), get_rate::<INR, GBP>()),
+            ("INR".to_string(), 1.0),
+        ]
+        .into_iter()
+        .collect(),
+        _ => {
+            return Err(AppError::BadRequest(format!("Unsupported currency: {}", base)).into());
+        }
+    };
+
+    Ok(Json(ExchangeRateResponse {
+        base: base_upper,
+        rates: rates_map,
+    }))
+}
+
+/// Convert an amount from one currency to another.
+#[tracing::instrument]
+pub async fn convert(Json(req): Json<ConvertRequest>) -> Result<impl IntoResponse, ApiError> {
+    use exchange_rates::{EUR, GBP, INR, Money, USD, convert as do_convert, get_rate};
+
+    let from_upper = req.from.to_uppercase();
+    let to_upper = req.to.to_uppercase();
+
+    // Runtime dispatch for type-safe conversion
+    let (rate, converted) = match (from_upper.as_str(), to_upper.as_str()) {
+        ("USD", "USD") => (1.0, req.amount),
+        ("USD", "EUR") => (
+            get_rate::<USD, EUR>(),
+            do_convert::<USD, EUR>(Money::<USD>::from_minor(req.amount)).minor_units(),
+        ),
+        ("USD", "GBP") => (
+            get_rate::<USD, GBP>(),
+            do_convert::<USD, GBP>(Money::<USD>::from_minor(req.amount)).minor_units(),
+        ),
+        ("USD", "INR") => (
+            get_rate::<USD, INR>(),
+            do_convert::<USD, INR>(Money::<USD>::from_minor(req.amount)).minor_units(),
+        ),
+        ("EUR", "USD") => (
+            get_rate::<EUR, USD>(),
+            do_convert::<EUR, USD>(Money::<EUR>::from_minor(req.amount)).minor_units(),
+        ),
+        ("EUR", "EUR") => (1.0, req.amount),
+        ("EUR", "GBP") => (
+            get_rate::<EUR, GBP>(),
+            do_convert::<EUR, GBP>(Money::<EUR>::from_minor(req.amount)).minor_units(),
+        ),
+        ("EUR", "INR") => (
+            get_rate::<EUR, INR>(),
+            do_convert::<EUR, INR>(Money::<EUR>::from_minor(req.amount)).minor_units(),
+        ),
+        ("GBP", "USD") => (
+            get_rate::<GBP, USD>(),
+            do_convert::<GBP, USD>(Money::<GBP>::from_minor(req.amount)).minor_units(),
+        ),
+        ("GBP", "EUR") => (
+            get_rate::<GBP, EUR>(),
+            do_convert::<GBP, EUR>(Money::<GBP>::from_minor(req.amount)).minor_units(),
+        ),
+        ("GBP", "GBP") => (1.0, req.amount),
+        ("GBP", "INR") => (
+            get_rate::<GBP, INR>(),
+            do_convert::<GBP, INR>(Money::<GBP>::from_minor(req.amount)).minor_units(),
+        ),
+        ("INR", "USD") => (
+            get_rate::<INR, USD>(),
+            do_convert::<INR, USD>(Money::<INR>::from_minor(req.amount)).minor_units(),
+        ),
+        ("INR", "EUR") => (
+            get_rate::<INR, EUR>(),
+            do_convert::<INR, EUR>(Money::<INR>::from_minor(req.amount)).minor_units(),
+        ),
+        ("INR", "GBP") => (
+            get_rate::<INR, GBP>(),
+            do_convert::<INR, GBP>(Money::<INR>::from_minor(req.amount)).minor_units(),
+        ),
+        ("INR", "INR") => (1.0, req.amount),
+        _ => {
+            return Err(AppError::BadRequest(format!(
+                "Unsupported currency pair: {} -> {}",
+                req.from, req.to
+            ))
+            .into());
+        }
+    };
+
+    Ok(Json(ConvertResponse {
+        from: from_upper,
+        to: to_upper,
+        amount: req.amount,
+        converted,
+        rate,
+    }))
 }

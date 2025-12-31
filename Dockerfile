@@ -20,6 +20,7 @@ COPY payments-hex ./payments-hex
 COPY payments-app ./payments-app
 COPY payments-client ./payments-client
 COPY payments-cli ./payments-cli
+COPY exchange-rates ./exchange-rates
 
 # Build release binary with postgres feature (default for production)
 RUN cargo build --release -p payments-app --no-default-features --features postgres

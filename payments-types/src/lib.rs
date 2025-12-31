@@ -19,9 +19,12 @@ pub mod ports;
 
 // Re-export commonly used types
 pub use domain::{
-    Account, AccountId, ApiKey, ApiKeyId, Currency, Money, Transaction, TransactionId,
+    Account, AccountId, ApiKey, ApiKeyId, CurrencyCode, DynMoney, Transaction, TransactionId,
     TransactionType, WebhookEndpoint, WebhookEndpointId, WebhookEvent, WebhookStatus,
 };
 pub use dto::*;
 pub use error::{AppError, DomainError, RepoError};
-pub use ports::TransactionRepository;
+pub use ports::{ExchangeError, ExchangeRateProvider, TransactionRepository};
+
+// Re-export type-safe currency types from exchange-rates for internal use
+pub use exchange_rates::{Currency, EUR, GBP, INR, Money, USD};

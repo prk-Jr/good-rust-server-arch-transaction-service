@@ -73,6 +73,7 @@ run_required "cargo check (all targets)" cargo check --all-targets
 run_warn "cargo clippy (all targets, all features)" cargo clippy --all-targets --all-features -- -D warnings
 
 # 2) Tests (feature matrix)
+run_required "exchange-rates tests" cargo test -p exchange-rates
 run_required "payments-types tests" cargo test -p payments-types
 run_required "payments-repo tests (postgres)" cargo test -p payments-repo --features postgres
 run_required "payments-repo tests (sqlite)" cargo test -p payments-repo --no-default-features --features sqlite

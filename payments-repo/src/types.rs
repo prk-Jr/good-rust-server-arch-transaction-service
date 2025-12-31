@@ -3,8 +3,8 @@
 use sqlx::FromRow;
 
 use payments_types::{
-    Account, AccountId, Currency, Money, RepoError, Transaction, TransactionId, TransactionType,
-    WebhookEvent, WebhookStatus,
+    Account, AccountId, CurrencyCode, DynMoney, RepoError, Transaction, TransactionId,
+    TransactionType, WebhookEvent, WebhookStatus,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -221,12 +221,12 @@ pub struct DbApiKey {
 // Parsing helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-pub fn parse_currency(s: &str) -> Result<Currency, RepoError> {
+pub fn parse_currency(s: &str) -> Result<CurrencyCode, RepoError> {
     match s {
-        "USD" => Ok(Currency::USD),
-        "EUR" => Ok(Currency::EUR),
-        "GBP" => Ok(Currency::GBP),
-        "INR" => Ok(Currency::INR),
+        "USD" => Ok(CurrencyCode::USD),
+        "EUR" => Ok(CurrencyCode::EUR),
+        "GBP" => Ok(CurrencyCode::GBP),
+        "INR" => Ok(CurrencyCode::INR),
         _ => Err(RepoError::Database(format!("Unknown currency: {}", s))),
     }
 }
@@ -251,7 +251,7 @@ impl DbAccount {
     /// Convert database row to domain Account.
     pub fn into_domain(self) -> Result<Account, RepoError> {
         let currency = parse_currency(&self.currency)?;
-        let money = Money::new(self.balance, currency).map_err(RepoError::Domain)?;
+        let money = DynMoney::new(self.balance, currency).map_err(RepoError::Domain)?;
 
         #[cfg(not(feature = "sqlite"))]
         let (id, created_at) = (AccountId::from_uuid(self.id), self.created_at);
@@ -275,7 +275,7 @@ impl DbTransaction {
     pub fn into_domain(self) -> Result<Transaction, RepoError> {
         let currency = parse_currency(&self.currency)?;
         let tx_type = parse_transaction_type(&self.direction)?;
-        let money = Money::new(self.amount, currency).map_err(RepoError::Domain)?;
+        let money = DynMoney::new(self.amount, currency).map_err(RepoError::Domain)?;
 
         #[cfg(not(feature = "sqlite"))]
         let (id, source_id, dest_id, created_at) = (

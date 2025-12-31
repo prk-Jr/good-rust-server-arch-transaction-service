@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::domain::{AccountId, Currency, TransactionId};
+use crate::domain::{AccountId, CurrencyCode, TransactionId};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Account DTOs
@@ -16,11 +16,11 @@ pub struct CreateAccountRequest {
     #[schema(example = "Alice")]
     pub name: String,
     #[serde(default = "default_currency")]
-    pub currency: Currency,
+    pub currency: CurrencyCode,
 }
 
-fn default_currency() -> Currency {
-    Currency::USD
+fn default_currency() -> CurrencyCode {
+    CurrencyCode::USD
 }
 
 /// Response after creating an account.
@@ -34,7 +34,7 @@ pub struct AccountResponse {
     /// Current balance in smallest currency unit (e.g., cents)
     #[schema(example = 10000)]
     pub balance: i64,
-    pub currency: Currency,
+    pub currency: CurrencyCode,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -49,7 +49,7 @@ pub struct DepositRequest {
     /// Amount to deposit in smallest currency unit
     #[schema(example = 1000)]
     pub amount: i64,
-    pub currency: Currency,
+    pub currency: CurrencyCode,
     /// Optional idempotency key to prevent duplicate transactions
     #[serde(skip_serializing_if = "Option::is_none")]
     pub idempotency_key: Option<String>,
@@ -66,7 +66,7 @@ pub struct WithdrawRequest {
     /// Amount to withdraw in smallest currency unit
     #[schema(example = 500)]
     pub amount: i64,
-    pub currency: Currency,
+    pub currency: CurrencyCode,
     /// Optional idempotency key to prevent duplicate transactions
     #[serde(skip_serializing_if = "Option::is_none")]
     pub idempotency_key: Option<String>,
@@ -85,7 +85,7 @@ pub struct TransferRequest {
     /// Amount to transfer in smallest currency unit
     #[schema(example = 500)]
     pub amount: i64,
-    pub currency: Currency,
+    pub currency: CurrencyCode,
     /// Optional idempotency key to prevent duplicate transactions
     #[serde(skip_serializing_if = "Option::is_none")]
     pub idempotency_key: Option<String>,

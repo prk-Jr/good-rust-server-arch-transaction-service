@@ -8,6 +8,6 @@ pub mod webhook;
 
 pub use account::{Account, AccountId};
 pub use api_key::{ApiKey, ApiKeyId};
-pub use money::{Currency, Money};
+pub use money::{CurrencyCode, DynMoney};
 pub use transaction::{Transaction, TransactionId, TransactionType};
 pub use webhook::{WebhookEndpoint, WebhookEndpointId, WebhookEvent, WebhookStatus};
